@@ -1,9 +1,12 @@
 import { Project, ManpowerRecord, ManpowerStatus, Employee, Subcontractor, Shift, User, UserRole, ProgressRecord, ProjectNodeType } from './types';
 
-DB_HOST=localhost
-DB_USER=muhmajed
-DB_PASSWORD=muh11315
-DB_NAME=mydb
+export const DB_CONFIG = {
+  host: 'localhost',
+  user: 'muhmajed',
+  password: 'muh11315',
+  database: 'mydb'
+};
+
 
 export const HIERARCHY: ProjectNodeType[] = ['Project', 'Level1', 'Level2', 'Level3', 'Level4', 'Level5', 'Level6', 'Level7', 'Level8', 'Level9', 'Activity'];
 

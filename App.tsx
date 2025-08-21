@@ -107,6 +107,14 @@ const App: React.FC = () => {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+    // New useEffect to fetch manpower records on component mount
+  useEffect(() => {
+    fetch('http://<your-vm-ip>:5000/api/manpower-records')
+      .then(response => response.json())
+      .then(data => setManpowerRecords(data))
+      .catch(console.error);
+  }, []); // empty dependency array means this runs once on mount
   
   // === DERIVED STATE ===
   const filteredRecordsForManpower = useMemo(() => {

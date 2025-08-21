@@ -65,6 +65,14 @@ const App: React.FC = () => {
   const [manpowerSelectedProjects, setManpowerSelectedProjects] = useState<string[]>([]);
   const [manpowerDateRange, setManpowerDateRange] = useState(getInitialManpowerDateRange);
 
+const fetchManpowerRecords = () => {
+  fetch('http://35.238.214.132:5000/api/manpower-records')
+    .then(res => res.json())
+    .then(data => setRecords(data))
+    .catch(console.error);
+};
+
+  
   // Apply theme
   useEffect(() => {
     if (theme === 'dark') {
@@ -82,6 +90,12 @@ const App: React.FC = () => {
       .then(data => setRecords(data))
       .catch(console.error);
   }, []);
+
+
+  useEffect(() => {
+  fetchManpowerRecords();
+}, []);
+
 
   // FETCH other data similarly if you build API endpoints...
 
@@ -109,31 +123,30 @@ const App: React.FC = () => {
 
   // CRUD Handlers with API integration
 
-  const handleAddRecord = async (newRecord: Omit<ManpowerRecord, 'id'>) => {
-    const recordToAdd = {
-      ...newRecord,
-      createdBy: currentUser?.name || 'System',
-      modifiedDate: new Date().toISOString().split('T')[0],
-      modifiedBy: currentUser?.name || 'System',
-    };
-
-    try {
-      const response = await fetch('http://35.238.214.132:5000/api/manpower-records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recordToAdd),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add record');
-      }
-
-      const savedRecord: ManpowerRecord = await response.json();
-      setRecords(prev => [...prev, savedRecord]);
-    } catch (error) {
-      console.error('Error adding record:', error);
-    }
+const handleAddRecord = async (newRecord) => {
+  const recordToAdd = {
+    ...newRecord,
+    createdBy: currentUser?.name || 'System',
+    modifiedDate: new Date().toISOString().split('T')[0],
+    modifiedBy: currentUser?.name || 'System',
   };
+
+  try {
+    const response = await fetch('http://35.238.214.132:5000/api/manpower-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recordToAdd),
+    });
+
+    if (!response.ok) throw new Error('Failed to add record');
+
+    // RELOAD all records after add to keep UI in sync
+    fetchManpowerRecords();
+  } catch (error) {
+    console.error('Error adding record:', error);
+  }
+};
+
 
   const handleUpdateRecord = async (updatedRecord: ManpowerRecord) => {
     const recordWithAudit = {
@@ -155,6 +168,8 @@ const App: React.FC = () => {
 
       const savedRecord: ManpowerRecord = await response.json();
       setRecords(prev => prev.map(rec => rec.id === savedRecord.id ? savedRecord : rec));
+      fetchManpowerRecords();
+
     } catch (error) {
       console.error('Error updating record:', error);
     }
@@ -171,6 +186,8 @@ const App: React.FC = () => {
       }
 
       setRecords(prev => prev.filter(record => record.id !== id));
+      fetchManpowerRecords();
+
     } catch (error) {
       console.error('Error deleting record:', error);
     }

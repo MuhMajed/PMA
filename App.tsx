@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import mysql from 'mysql2';
 import { ManpowerRecord, Project, Employee, Subcontractor, ProgressRecord, User, Profession, Department } from './types';
 import { 
   PROJECTS, 
@@ -24,6 +25,20 @@ import SettingsDepartments from './pages/SettingsDepartments';
 import SettingsUsers from './pages/SettingsUsers';
 import LoginPage from './pages/LoginPage';
 import { ConfirmationProvider } from './components/ConfirmationProvider';
+
+
+const connection = mysql.createConnection({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'muhmajed',
+  password: process.env.DB_PASSWORD || 'muh11315',
+  database: process.env.DB_NAME || 'mydb',
+});
+
+connection.connect((err) => {
+  if (err) throw err;
+  console.log('Connected to MySQL!');
+});
+
 
 export type Page = 
   | 'dashboard' 

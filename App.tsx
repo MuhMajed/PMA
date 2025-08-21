@@ -110,7 +110,7 @@ const App: React.FC = () => {
 
     // New useEffect to fetch manpower records on component mount
   useEffect(() => {
-    fetch('http://<your-vm-ip>:5000/api/manpower-records')
+    fetch('http://http://35.238.214.132:5000/api/manpower-records')
       .then(response => response.json())
       .then(data => setManpowerRecords(data))
       .catch(console.error);

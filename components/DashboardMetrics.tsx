@@ -1,0 +1,367 @@
+
+import React, { useMemo, useRef } from 'react';
+import { ManpowerRecord, Subcontractor, Project, Employee, Shift, EmployeeType } from '../types';
+import { Theme } from '../App';
+import { Pie, Bar, getElementAtEvent } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler } from 'chart.js';
+import { UsersIcon } from './icons/UsersIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { UserCircleIcon } from './icons/UserCircleIcon';
+import { UsersGroupIcon } from './icons/UsersGroupIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler);
+
+export type CrossFilters = {
+    subcontractor: string | null;
+    shift: Shift | null;
+    type: EmployeeType | 'Unknown' | null;
+};
+
+interface DashboardMetricsProps {
+    records: ManpowerRecord[];
+    subcontractors: Subcontractor[];
+    projects: Project[];
+    employees: Employee[];
+    selectedProjects: string[];
+    theme: Theme;
+    // New stat props
+    totalEmployees: number;
+    todaysHeadcount: number;
+    avgDailyManpower: number;
+    // Cross-filtering
+    crossFilters: CrossFilters;
+    setCrossFilters: React.Dispatch<React.SetStateAction<CrossFilters>>;
+}
+
+const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode }> = ({ title, value, icon }) => (
+    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm flex items-center space-x-4">
+        <div className="bg-green-100 dark:bg-slate-700 text-[#28a745] dark:text-green-400 rounded-full p-3 flex-shrink-0">
+            {icon}
+        </div>
+        <div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{title}</p>
+            <p className="text-2xl font-bold text-slate-800 dark:text-white">{value}</p>
+        </div>
+    </div>
+);
+
+// Material 3 inspired flat colors
+const materialChartColors = [
+    '#4285F4', // Blue
+    '#DB4437', // Red
+    '#F4B400', // Yellow
+    '#0F9D58', // Green
+    '#AB47BC', // Purple
+    '#00ACC1', // Cyan
+    '#FF7043', // Orange
+    '#78909C', // Blue Grey
+    '#5C6BC0', // Indigo
+    '#EC407A', // Pink
+    '#26A69A', // Teal
+    '#FFCA28', // Amber
+];
+
+const FilterBadge: React.FC<{ label: string; value: string; onClear: () => void }> = ({ label, value, onClear }) => (
+    <span className="inline-flex items-center gap-x-1.5 rounded-md bg-green-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300">
+        <strong>{label}:</strong> {value}
+        <button type="button" onClick={onClear} className="group relative -mr-1 h-3.5 w-3.5 rounded-sm hover:bg-green-500/20">
+            <span className="sr-only">Remove</span>
+            <XCircleIcon className="h-3.5 w-3.5 text-green-600 dark:text-green-400 group-hover:text-green-700 dark:group-hover:text-green-200" />
+        </button>
+    </span>
+);
+
+
+const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
+    records, subcontractors, projects, employees, selectedProjects, theme,
+    totalEmployees, todaysHeadcount, avgDailyManpower, crossFilters, setCrossFilters
+}) => {
+    
+    const employeeTypeMap = useMemo(() => new Map(employees.map(e => [e.empId, e.type])), [employees]);
+
+    const crossFilteredRecords = useMemo(() => {
+        return records.filter(r => {
+            const type = employeeTypeMap.get(r.empId) || 'Unknown';
+            if (crossFilters.subcontractor && r.subcontractor !== crossFilters.subcontractor) return false;
+            if (crossFilters.shift && r.shift !== crossFilters.shift) return false;
+            if (crossFilters.type && type !== crossFilters.type) return false;
+            return true;
+        });
+    }, [records, crossFilters, employeeTypeMap]);
+
+
+    const cumulativeHeadcount = crossFilteredRecords.length;
+    const totalHours = crossFilteredRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+    
+    // Manpower Histogram Data (Stacked Bar Chart)
+    const manpowerByDateAndProject = useMemo(() => {
+        const projectMapCache = new Map<string, Project | null>();
+        const getTopLevelProject = (projectId: string, allProjects: Project[]): Project | null => {
+            if (projectMapCache.has(projectId)) {
+                return projectMapCache.get(projectId)!;
+            }
+
+            let current = allProjects.find(p => p.id === projectId);
+            if (!current) {
+                projectMapCache.set(projectId, null);
+                return null;
+            }
+            
+            const path = [current];
+            while (current.parentId) {
+                const parent = allProjects.find(p => p.id === current.parentId);
+                if (!parent) break;
+                current = parent;
+                path.push(current);
+            }
+            
+            path.forEach(node => projectMapCache.set(node.id, current));
+            
+            return current;
+        };
+
+        return crossFilteredRecords.reduce((acc, record) => {
+            const date = record.date;
+            const topLevelProject = getTopLevelProject(record.project, projects);
+            if (!topLevelProject) return acc;
+
+            const projectName = topLevelProject.name;
+
+            if (!acc[date]) {
+                acc[date] = {};
+            }
+            acc[date][projectName] = (acc[date][projectName] || 0) + 1;
+            return acc;
+        }, {} as { [date: string]: { [projectName: string]: number } });
+    }, [crossFilteredRecords, projects]);
+
+    const trendChartData = useMemo(() => {
+        const sortedDates = Object.keys(manpowerByDateAndProject).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        
+        const allProjectNamesInSelection = Array.from(
+            new Set(
+                Object.values(manpowerByDateAndProject).flatMap(dateData => Object.keys(dateData))
+            )
+        ).sort();
+
+        const datasets = allProjectNamesInSelection.map((projectName, index) => ({
+            label: projectName,
+            data: sortedDates.map(date => manpowerByDateAndProject[date]?.[projectName] || 0),
+            backgroundColor: materialChartColors[index % materialChartColors.length],
+        }));
+
+        return {
+            labels: sortedDates,
+            datasets,
+        };
+    }, [manpowerByDateAndProject]);
+
+
+    // Subcontractor Distribution Data (Bar Chart)
+    const manpowerBySubcontractor = crossFilteredRecords.reduce((acc, record) => {
+        const subName = record.subcontractor || 'Unknown';
+        acc[subName] = (acc[subName] || 0) + 1;
+        return acc;
+    }, {} as { [key: string]: number });
+
+    const subcontractorChartData = {
+        labels: Object.keys(manpowerBySubcontractor),
+        datasets: [{
+            label: 'Manpower Count',
+            data: Object.values(manpowerBySubcontractor),
+            backgroundColor: '#4285F4', // Material Blue
+            borderColor: '#4285F4',
+            borderWidth: 1,
+        }],
+    };
+
+    // Manpower by Shift (Pie Chart)
+    const manpowerByShift = crossFilteredRecords.reduce((acc, record) => {
+        acc[record.shift] = (acc[record.shift] || 0) + 1;
+        return acc;
+    }, {} as Record<Shift, number>);
+
+    const shiftLabels = Object.keys(manpowerByShift) as Shift[];
+    const shiftChartData = {
+        labels: shiftLabels,
+        datasets: [{
+            data: shiftLabels.map(label => manpowerByShift[label]),
+            backgroundColor: shiftLabels.map(label => label === Shift.DAY ? '#F4B400' : '#5C6BC0'), // Yellow for Day, Indigo for Night
+            borderColor: theme === 'dark' ? '#1e293b' : '#fff',
+            borderWidth: 2,
+        }],
+    };
+
+    // Manpower by Type (Pie Chart)
+    const manpowerByType = crossFilteredRecords.reduce((acc, record) => {
+        const type = employeeTypeMap.get(record.empId) || 'Unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+    }, {} as Record<EmployeeType | 'Unknown', number>);
+
+    const typeLabels = Object.keys(manpowerByType);
+    const typeColorMap: Record<string, string> = {
+        'Direct': '#00ACC1',   // Cyan
+        'Indirect': '#AB47BC', // Purple
+        'Unknown': '#78909C',  // Blue Grey
+    };
+    const typeChartData = {
+        labels: typeLabels,
+        datasets: [{
+            data: typeLabels.map(label => manpowerByType[label]),
+            backgroundColor: typeLabels.map(label => typeColorMap[label] || '#BDBDBD'), // fallback to a neutral grey
+            borderColor: theme === 'dark' ? '#1e293b' : '#fff',
+            borderWidth: 2,
+        }],
+    };
+    
+    const clearAllFilters = () => {
+        setCrossFilters({ subcontractor: null, shift: null, type: null });
+    };
+
+    const hasActiveFilters = Object.values(crossFilters).some(f => f !== null);
+
+    // Chart Refs
+    const subcontractorChartRef = useRef<ChartJS<'bar'>>(null);
+    const shiftChartRef = useRef<ChartJS<'pie'>>(null);
+    const typeChartRef = useRef<ChartJS<'pie'>>(null);
+
+    // Generic click handler using getElementAtEvent
+    const handleChartClick = (
+        event: React.MouseEvent<HTMLCanvasElement>,
+        chartRef: React.RefObject<ChartJS<any>>,
+        chartData: any,
+        filterKey: keyof CrossFilters
+    ) => {
+        const chart = chartRef.current;
+        if (!chart) return;
+        const elements = getElementAtEvent(chart, event);
+        if (elements.length > 0) {
+            const { index } = elements[0];
+            const label = chartData.labels[index];
+            if (label) {
+                 setCrossFilters(prev => {
+                    const currentValue = prev[filterKey];
+                    return { ...prev, [filterKey]: currentValue === label ? null : label };
+                });
+            }
+        }
+    };
+    
+    // Memoized Chart Options
+    const legendColor = theme === 'dark' ? '#cbd5e1' : '#475569';
+    const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
+
+    const trendChartOptions = useMemo(() => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
+            title: { display: true, text: 'Manpower Histogram', color: legendColor, font: { size: 16 } }
+        },
+        scales: {
+            x: { ticks: { color: legendColor }, grid: { color: gridColor }, stacked: true },
+            y: { ticks: { color: legendColor }, grid: { color: gridColor }, beginAtZero: true, stacked: true }
+        }
+    }), [theme, legendColor, gridColor]);
+
+    const subcontractorChartOptions = useMemo(() => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            title: { display: true, text: 'Subcontractor Distribution', color: legendColor, font: { size: 16 } }
+        },
+        scales: {
+            x: { ticks: { color: legendColor }, grid: { color: gridColor } },
+            y: { ticks: { color: legendColor }, grid: { color: gridColor }, beginAtZero: true }
+        }
+    }), [theme, legendColor, gridColor]);
+    
+    const shiftChartOptions = useMemo(() => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom' as const, labels: { color: legendColor } },
+            title: { display: true, text: 'Shift Distribution', color: legendColor, font: { size: 16 } }
+        }
+    }), [theme, legendColor]);
+    
+    const typeChartOptions = useMemo(() => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom' as const, labels: { color: legendColor } },
+            title: { display: true, text: 'Manpower Type Distribution', color: legendColor, font: { size: 16 } }
+        }
+    }), [theme, legendColor]);
+
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                <StatCard title="No. of Employees" value={totalEmployees} icon={<UsersIcon className="h-6 w-6" />} />
+                <StatCard title="Today's Headcount" value={todaysHeadcount} icon={<UserCircleIcon className="h-6 w-6" />} />
+                <StatCard title="Cumulative Headcount" value={cumulativeHeadcount} icon={<UsersGroupIcon className="h-6 w-6" />} />
+                <StatCard title="Avg. Daily Manpower" value={avgDailyManpower.toFixed(1)} icon={<ChartBarIcon className="h-6 w-6" />} />
+                <StatCard title="Total Hours Worked" value={totalHours.toFixed(1)} icon={<ClockIcon className="h-6 w-6" />} />
+            </div>
+
+            {records.length > 0 ? (
+                <div className="space-y-6">
+                     {hasActiveFilters && (
+                        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Filters:</span>
+                                {crossFilters.subcontractor && <FilterBadge label="Subcontractor" value={crossFilters.subcontractor} onClear={() => setCrossFilters(p => ({ ...p, subcontractor: null }))} />}
+                                {crossFilters.shift && <FilterBadge label="Shift" value={crossFilters.shift} onClear={() => setCrossFilters(p => ({ ...p, shift: null }))} />}
+                                {crossFilters.type && <FilterBadge label="Type" value={crossFilters.type} onClear={() => setCrossFilters(p => ({ ...p, type: null }))} />}
+                            </div>
+                            <button onClick={clearAllFilters} className="text-sm font-semibold text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                Clear All
+                            </button>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96">
+                            <Bar data={trendChartData} options={trendChartOptions} />
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96">
+                            <Bar 
+                                ref={subcontractorChartRef}
+                                data={subcontractorChartData} 
+                                options={subcontractorChartOptions}
+                                onClick={(event) => handleChartClick(event, subcontractorChartRef, subcontractorChartData, 'subcontractor')}
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80">
+                            <Pie 
+                                ref={shiftChartRef}
+                                data={shiftChartData} 
+                                options={shiftChartOptions}
+                                onClick={(event) => handleChartClick(event, shiftChartRef, shiftChartData, 'shift')}
+                            />
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80">
+                           <Pie
+                                ref={typeChartRef}
+                                data={typeChartData}
+                                options={typeChartOptions}
+                                onClick={(event) => handleChartClick(event, typeChartRef, typeChartData, 'type')}
+                            />
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm text-center">
+                    <p className="text-slate-500 dark:text-slate-400">No data available for the selected project and date range.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default DashboardMetrics;

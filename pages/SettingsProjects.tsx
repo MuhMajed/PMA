@@ -451,7 +451,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                                                 required min="0" step="any"
                                                 className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
                                             />
-                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Unit: Man-hours / {formData.uom || 'Unit'}</p>
+                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Unit: {formData.uom || 'Unit'} / Man-hour</p>
                                         </div>
                                         <div>
                                             <label htmlFor="companyNorm" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -462,7 +462,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                                                 min="0" step="any"
                                                 className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
                                             />
-                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Unit: Man-hours / {formData.uom || 'Unit'}</p>
+                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Unit: {formData.uom || 'Unit'} / Man-hour</p>
                                         </div>
                                     </div>
                                 </>

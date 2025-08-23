@@ -1,4 +1,5 @@
 
+
 export enum ManpowerStatus {
   ACTIVE = 'Active',
   IDLE = 'Idle',
@@ -37,8 +38,8 @@ export interface Project {
   type: ProjectNodeType;
   uom?: string; // Unit of Measurement
   totalQty?: number; // Total planned quantity for activities
-  universalNorm?: number; // Universal Norm in Man-hours / uom
-  companyNorm?: number; // Company Norm in Man-hours / uom
+  universalNorm?: number; // Universal Norm in uom / Man-hour
+  companyNorm?: number; // Company Norm in uom / Man-hour
   rate?: number; // Rate per uom for BOQ
   hierarchyLabels?: Partial<Record<ProjectNodeType, string>>; // For root projects
 }
@@ -92,6 +93,7 @@ export interface User {
   email: string;
   password?: string; // Optional because we don't want to send it to the client
   role: UserRole;
+  assignedProjects?: string[];
 }
 
 export type Profession = string;

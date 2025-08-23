@@ -83,7 +83,7 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
         e.preventDefault();
         setErrorMessage(null);
 
-        if (!selectedActivityId) {
+        if (!selectedActivityId || !selectedActivity) {
             setErrorMessage("Please select an activity.");
             return;
         }
@@ -92,9 +92,19 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
             setErrorMessage("Please enter a valid quantity.");
             return;
         }
+        
+        const finalCumulativeQty = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeQty : 0;
 
         // --- EDIT LOGIC ---
         if (recordToEdit) {
+            const dailyQty = Number(quantity);
+            const newTotalCumulative = finalCumulativeQty - recordToEdit.qty + dailyQty;
+            
+            if (selectedActivity.totalQty && newTotalCumulative > selectedActivity.totalQty) {
+                setErrorMessage(`This change would result in a total cumulative quantity of ${newTotalCumulative.toFixed(2)}, which exceeds the total planned quantity (${selectedActivity.totalQty}).\nPlease adjust the quantity or edit the planned quantity in the Project Settings if needed.`);
+                return;
+            }
+
             const updatedRecord: ProgressRecordType = {
                 ...recordToEdit,
                 date: selectedDate,
@@ -108,6 +118,12 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
 
         // --- ADD LOGIC ---
         const cumulativeQty = Number(quantity);
+
+        if (selectedActivity.totalQty && cumulativeQty > selectedActivity.totalQty) {
+            setErrorMessage(`Cumulative quantity (${cumulativeQty.toFixed(2)}) exceeds the total planned quantity for this activity (${selectedActivity.totalQty}).\nPlease adjust the quantity or edit the planned quantity in the Project Settings if needed.`);
+            return;
+        }
+
         const existingRecordOnDate = recordsForActivity.find(r => r.date === selectedDate);
         if (existingRecordOnDate) {
             setErrorMessage(`A record for ${selectedDate} already exists. Please edit the existing record or choose a different date.`);

@@ -1,9 +1,11 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { User, UserRole, Employee } from '../types';
+import { User, UserRole, Employee, Project } from '../types';
 import Modal from './ui/Modal';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
+import { ProjectMultiSelectFilter } from './ProjectMultiSelectFilter';
 
 interface AddUserModalProps {
   onClose: () => void;
@@ -12,9 +14,10 @@ interface AddUserModalProps {
   userToEdit: User | null;
   allUsers: User[];
   employees: Employee[];
+  projects: Project[];
 }
 
-const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, userToEdit, allUsers, employees }) => {
+const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, userToEdit, allUsers, employees, projects }) => {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +26,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
   const [empId, setEmpId] = useState('');
   const [email, setEmail] = useState('');
   const [employeeStatus, setEmployeeStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [assignedProjects, setAssignedProjects] = useState<string[]>([]);
 
   const isEditMode = !!userToEdit;
 
@@ -35,6 +39,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
       setEmail(userToEdit.email);
       setPassword('');
       setConfirmPassword('');
+      setAssignedProjects(userToEdit.assignedProjects || []);
       // Since it's edit mode, we assume the employee is valid
       setEmployeeStatus('valid');
     }
@@ -101,7 +106,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
         }
     }
 
-    const userData = { name, username, empId, email, role, password: password || undefined };
+    const userData = { name, username, empId, email, role, password: password || undefined, assignedProjects };
     
     if (isEditMode) {
         onEdit({ ...userToEdit, ...userData });
@@ -116,7 +121,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
   const RequiredIndicator = () => <span className="text-red-500 ml-1">*</span>;
 
   return (
-    <Modal title={isEditMode ? 'Edit User' : 'Add New User'} onClose={onClose} size="2xl">
+    <Modal title={isEditMode ? 'Edit User' : 'Add New User'} onClose={onClose} size="3xl">
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
              <div>
@@ -182,6 +187,19 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
                     <input type="password" id="confirmPassword" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputStyles} />
                 </div>
             </div>
+            
+            <hr className="border-slate-200 dark:border-slate-700" />
+
+            <div>
+                <label className={labelStyles}>Assigned Projects</label>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-2">Assign user to specific projects. Leave empty to grant access to all projects.</p>
+                <ProjectMultiSelectFilter 
+                    projects={projects}
+                    selectedIds={assignedProjects}
+                    onSelectionChange={setAssignedProjects}
+                />
+            </div>
+
 
           </div>
           <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 text-right space-x-3">

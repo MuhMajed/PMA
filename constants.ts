@@ -1,13 +1,5 @@
 import { Project, ManpowerRecord, ManpowerStatus, Employee, Subcontractor, Shift, User, UserRole, ProgressRecord, ProjectNodeType } from './types';
 
-export const DB_CONFIG = {
-  host: 'localhost',
-  user: 'muhmajed',
-  password: 'muh11315',
-  database: 'mydb'
-};
-
-
 export const HIERARCHY: ProjectNodeType[] = ['Project', 'Level1', 'Level2', 'Level3', 'Level4', 'Level5', 'Level6', 'Level7', 'Level8', 'Level9', 'Activity'];
 
 export const DEFAULT_HIERARCHY_LABELS: Record<ProjectNodeType, string> = {
@@ -76,10 +68,10 @@ export const PROJECTS: Project[] = [
   { id: 'p4_dammam_ug_con_zone1', name: 'Reinforced Concrete', parentId: 'p4_dammam_ug_flr1', type: 'Level5' },
   { id: 'p4_dammam_ug_con_zone2', name: 'Plain Concrete', parentId: 'p4_dammam_ug_flr1', type: 'Level5' },
   // Activities for Reinforced Concrete
-  { id: 'p4_act_rc_pour_v', name: 'Vertical Elements (Columns): Concrete Pouring', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm³', totalQty: 1200, universalNorm: 2.5, companyNorm: 2.2, rate: 180 },
-  { id: 'p4_act_rc_form_v', name: 'Vertical Elements (Columns): Formwork', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm²', totalQty: 8000, universalNorm: 0.8, companyNorm: 0.75, rate: 45 },
-  { id: 'p4_act_rc_rebar_h', name: 'Horizontal Elements (Slabs): Rebar', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'ton', totalQty: 150, universalNorm: 20, companyNorm: 18, rate: 3000 },
-  { id: 'p4_act_rc_deshutter_h', name: 'Horizontal Elements (Slabs): Deshuttering', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm²', totalQty: 8000, universalNorm: 0.4, companyNorm: 0.35, rate: 20 },
+  { id: 'p4_act_rc_pour_v', name: 'Vertical Elements (Columns): Concrete Pouring', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm³', totalQty: 1200, universalNorm: 0.4, companyNorm: 0.45, rate: 180 },
+  { id: 'p4_act_rc_form_v', name: 'Vertical Elements (Columns): Formwork', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm²', totalQty: 8000, universalNorm: 1.25, companyNorm: 1.33, rate: 45 },
+  { id: 'p4_act_rc_rebar_h', name: 'Horizontal Elements (Slabs): Rebar', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'ton', totalQty: 150, universalNorm: 0.05, companyNorm: 0.056, rate: 3000 },
+  { id: 'p4_act_rc_deshutter_h', name: 'Horizontal Elements (Slabs): Deshuttering', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm²', totalQty: 8000, universalNorm: 2.5, companyNorm: 2.86, rate: 20 },
 
   // --- Khobar Path (example subset) ---
   // Work Types (Area)
@@ -656,7 +648,7 @@ export const INITIAL_PROGRESS_RECORDS: ProgressRecord[] = [
 ];
 
 export const INITIAL_USERS: User[] = [
-  { id: 'user1', name: 'Admin User', username: 'admin', empId: 'ADM001', email: 'admin@company.com', password: 'admin123', role: 'Admin' },
-  { id: 'user2', name: 'Project Manager', username: 'pm', empId: 'PM001', email: 'pm@company.com', password: 'pm123', role: 'Project Manager' },
-  { id: 'user3', name: 'Data Entry Clerk', username: 'data', empId: 'DE001', email: 'data@company.com', password: 'data123', role: 'Data Entry' },
+  { id: 'user1', name: 'Admin User', username: 'admin', empId: 'ADM001', email: 'admin@company.com', password: 'admin123', role: 'Admin', assignedProjects: [] },
+  { id: 'user2', name: 'Project Manager', username: 'pm', empId: 'PM001', email: 'pm@company.com', password: 'pm123', role: 'Project Manager', assignedProjects: [] },
+  { id: 'user3', name: 'Data Entry Clerk', username: 'data', empId: 'DE001', email: 'data@company.com', password: 'data123', role: 'Data Entry', assignedProjects: [] },
 ];

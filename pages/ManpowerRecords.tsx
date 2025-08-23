@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { ManpowerRecord, Project, Subcontractor, Employee, User } from '../types';
 import ManpowerTable from '../components/ManpowerTable';
@@ -123,7 +124,7 @@ const ManpowerRecords: React.FC<ManpowerRecordsProps> = ({
               className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               <ImportIcon className="h-5 w-5 mr-2" />
-              Import
+              Bulk Upload
             </button>
             <button
               onClick={handleExport}

@@ -58,13 +58,13 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
             const data = sortedDates.map(date => {
                 const hours = manHoursByDate[activity.id]?.[date] || 0;
                 const qty = qtyByDate[activity.id]?.[date] || 0;
-                return hours > 0 && qty > 0 ? hours / qty : null;
+                return hours > 0 && qty > 0 ? qty / hours : null;
             });
             
             const color = materialChartColors[index % materialChartColors.length];
 
             return {
-                label: `${activity.name} (Man-hours / ${activity.uom || 'Unit'})`,
+                label: `${activity.name} (${activity.uom || 'Unit'} / Man-hour)`,
                 data,
                 borderColor: color,
                 backgroundColor: `${color}33`, // Add alpha for fill
@@ -144,7 +144,7 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Man-hours per Unit',
+                        text: 'Unit / Man-hour',
                         color: legendColor,
                     }
                 }

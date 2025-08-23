@@ -1,7 +1,7 @@
 
 
 import React, { useState, useMemo } from 'react';
-import { User, UserRole, Employee } from '../types';
+import { User, UserRole, Employee, Project } from '../types';
 import PageHeader from '../components/ui/PageHeader';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
@@ -15,6 +15,7 @@ import Tooltip from '../components/ui/Tooltip';
 interface SettingsUsersProps {
     users: User[];
     employees: Employee[];
+    projects: Project[];
     onAdd: (user: Omit<User, 'id'>) => void;
     onUpdate: (user: User) => void;
     onDelete: (id: string) => void;
@@ -28,7 +29,7 @@ const roleColors: Record<UserRole, string> = {
     'Data Entry': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
 };
 
-const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, onAdd, onUpdate, onDelete, onAdminResetPassword, currentUser }) => {
+const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, projects, onAdd, onUpdate, onDelete, onAdminResetPassword, currentUser }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState<User | null>(null);
@@ -76,6 +77,8 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, onAdd, 
         user.email.toLowerCase().includes(filter.toLowerCase())
     ), [users, filter]);
 
+    const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -107,11 +110,18 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, onAdd, 
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Email</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Username</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Role</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Assigned Projects</th>
                                 <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                            {filteredUsers.map((user) => (
+                            {filteredUsers.map((user) => {
+                                const assignedProjectNames = (user.assignedProjects || [])
+                                    .map(id => projectsById.get(id)?.name)
+                                    .filter(Boolean)
+                                    .join(', ');
+                                
+                                return (
                                 <tr key={user.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{user.name}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{user.empId}</td>
@@ -121,6 +131,15 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, onAdd, 
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${roleColors[user.role]}`}>
                                             {user.role}
                                         </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                                        {(!user.assignedProjects || user.assignedProjects.length === 0) ? (
+                                             <span className="italic">All Projects</span>
+                                        ) : (
+                                            <Tooltip content={assignedProjectNames}>
+                                                <span>{user.assignedProjects.length} project(s)</span>
+                                            </Tooltip>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
                                         <button onClick={() => openResetModal(user)} className="text-yellow-600 hover:text-yellow-800" title="Reset Password"><KeyIcon className="h-5 w-5 pointer-events-none" /></button>
@@ -136,7 +155,7 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, onAdd, 
                                         </Tooltip>
                                     </td>
                                 </tr>
-                            ))}
+                            )})}
                         </tbody>
                     </table>
                 </div>
@@ -150,6 +169,7 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, onAdd, 
                     userToEdit={userToEdit}
                     allUsers={users}
                     employees={employees}
+                    projects={projects}
                 />
             )}
             {isResetModalOpen && (

@@ -20,21 +20,48 @@
     </script>
     <style>
       @media print {
-        body {
-          background-color: white !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
+        /* ==== Generic Resets ==== */
+        html, body, #root {
+            height: auto !important;
+            overflow: visible !important;
+            width: 100%;
+            background-color: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        .no-print {
+        *, *::before, *::after {
+          box-shadow: none !important;
+          text-shadow: none !important;
+          border-color: #dee2e6 !important;
+        }
+
+        /* ==== Layout Overrides ==== */
+        .no-print, header, aside {
           display: none !important;
         }
-        header, aside {
-          display: none !important;
+        .print-only {
+          display: block !important;
         }
         main {
           padding: 0 !important;
           margin: 0 !important;
+          overflow: visible !important;
+          height: auto !important;
+          max-height: none !important;
+          display: block !important;
         }
+
+        /* ==== Component-specific Overrides ==== */
+        /* Broad rule to override Tailwind's fixed heights (e.g., h-96, h-[60vh]) on chart/panel containers */
+        .bg-white, .dark\:bg-slate-800 {
+          height: auto !important;
+        }
+        canvas {
+          max-width: 100% !important;
+          height: auto !important;
+        }
+
+        /* ==== Dark Mode Print Fixes ==== */
         .dark {
           background-color: white !important;
           color: black !important;
@@ -64,17 +91,18 @@
         .dark .dark\:border-slate-600 {
             border-color: #e2e8f0 !important;
         }
-
-        .shadow-sm, .shadow-lg {
-          box-shadow: none !important;
-        }
-        .rounded-lg, .rounded-md {
-          border: 1px solid #e2e8f0;
+        
+        /* ==== Pagination and Sizing ==== */
+        .print-break-inside-avoid {
+            page-break-inside: avoid;
         }
         @page {
-          size: A4 landscape;
+          size: A3 landscape;
           margin: 1cm;
         }
+      }
+      .print-only {
+        display: none;
       }
     </style>
   <script type="importmap">
@@ -88,8 +116,7 @@
     "xlsx": "https://esm.sh/xlsx@0.18.5",
     "zustand": "https://esm.sh/zustand@4.5.2?external=react",
     "zustand/shallow": "https://esm.sh/zustand@4.5.2/shallow?external=react",
-    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.35.1?external=react",
-    "@google/genai": "https://esm.sh/@google/genai"
+    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.35.1?external=react"
   }
 }
 </script>

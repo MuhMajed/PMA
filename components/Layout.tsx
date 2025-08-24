@@ -20,7 +20,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-[#1e1e2d] text-slate-800 dark:text-slate-200 flex">
+    <div className="min-h-screen bg-slate-100 dark:bg-[#1e1e2d] text-slate-800 dark:text-slate-200 flex print:block print:min-h-0">
       <aside className="no-print">
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -29,7 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           currentUser={currentUser}
         />
       </aside>
-      <div className="flex-1 flex flex-col transition-all duration-300 min-w-0">
+      <div className="flex-1 flex flex-col transition-all duration-300 min-w-0 print:block">
         <header className="no-print">
           <Header 
             toggleSidebar={toggleSidebar}
@@ -39,7 +39,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             onLogout={logout}
           />
         </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto print:p-0 print:m-0 print:overflow-visible">
           {children}
         </main>
       </div>

@@ -5,156 +5,10 @@ import DashboardMetrics, { CrossFilters } from '../components/DashboardMetrics';
 import ProductivityDashboard from '../components/ProductivityDashboard';
 import PageHeader from '../components/ui/PageHeader';
 import { ProjectMultiSelectFilter } from '../components/ProjectMultiSelectFilter';
-import { Project, ManpowerRecord, ProgressRecord } from '../types';
+import { Project } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../utils/api';
 import { PrinterIcon } from '../components/icons/PrinterIcon';
-import { GoogleGenAI } from "@google/genai";
-
-const SparklesIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.572L16.5 21.75l-.398-1.178a3.375 3.375 0 00-2.3-2.3L12.75 18l1.178-.398a3.375 3.375 0 002.3-2.3L16.5 14.25l.398 1.178a3.375 3.375 0 002.3 2.3l1.178.398-1.178.398a3.375 3.375 0 00-2.3 2.3z" />
-  </svg>
-);
-
-const SimpleMarkdown: React.FC<{ text: string }> = ({ text }) => {
-    const createMarkup = () => {
-        const html = text
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/^\s*[\*-]\s+(.*)/gm, '<li class="ml-4 list-disc">$1</li>')
-            .replace(/(\<\/li\>)(?!\<li\>)/g, '</li></ul>')
-            .replace(/(\<li class="ml-4 list-disc"\>)/g, '<ul><li class="ml-4 list-disc">')
-            .replace(/\n/g, '<br />');
-        return { __html: html };
-    };
-    return <div className="prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-slate-300" dangerouslySetInnerHTML={createMarkup()} />;
-};
-
-
-interface GeminiInsightsProps {
-    records: ManpowerRecord[];
-    progressRecords: ProgressRecord[];
-    projects: Project[];
-    projectIdsToFilter: string[];
-    dateRange: { start: string; end: string };
-    projectName: string;
-}
-
-const GeminiInsights: React.FC<GeminiInsightsProps> = ({ records, progressRecords, projects, projectIdsToFilter, dateRange, projectName }) => {
-    const [isLoading, setIsLoading] = useState(false);
-    const [insights, setInsights] = useState('');
-    const [error, setError] = useState('');
-
-    const generateInsights = async () => {
-        setIsLoading(true);
-        setInsights('');
-        setError('');
-
-        try {
-            if (!process.env.API_KEY) {
-                // For this demo environment, we can show a specific message.
-                setError("API_KEY is not configured. This feature requires a valid Gemini API key.");
-                setIsLoading(false);
-                return;
-            }
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-            const activities = projects.filter(p => p.type === 'Activity' && projectIdsToFilter.includes(p.id));
-
-            let productivitySummary = 'No productivity data available for the selected activities.';
-            if (activities.length > 0 && progressRecords.length > 0 && records.length > 0) {
-                const activityInsights = activities.slice(0, 3).map(activity => {
-                    const relevantProgress = progressRecords.filter(pr => pr.activityId === activity.id);
-                    const relevantManpower = records.filter(mr => mr.project === activity.id);
-
-                    const totalQty = relevantProgress.reduce((sum, r) => sum + r.qty, 0);
-                    const totalHours = relevantManpower.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
-                    
-                    if (totalHours > 0 && totalQty > 0) {
-                        const actualProductivity = totalQty / totalHours;
-                        let insight = `For activity "${activity.name}", the actual productivity was ${actualProductivity.toFixed(2)} ${activity.uom}/Man-hour.`;
-                        if(activity.companyNorm) {
-                            insight += ` The company norm is ${activity.companyNorm} ${activity.uom}/Man-hour.`;
-                            const variance = ((actualProductivity - activity.companyNorm) / activity.companyNorm) * 100;
-                            insight += ` This is a variance of ${variance.toFixed(1)}%.`;
-                        }
-                        return insight;
-                    }
-                    return null;
-                }).filter(Boolean);
-
-                if (activityInsights.length > 0) {
-                    productivitySummary = activityInsights.join('\n');
-                }
-            }
-
-            const prompt = `
-                You are a construction project analyst. Based on the following data for the project "${projectName}" from ${dateRange.start} to ${dateRange.end}, provide a concise analysis in 3-4 bullet points.
-                Focus on manpower trends and productivity performance. Be direct and insightful.
-
-                Data Summary:
-                - Total manpower records in this period: ${records.length}
-                - Total man-hours worked: ${records.reduce((sum, r) => sum + (r.hoursWorked || 0), 0).toFixed(1)}
-                - Number of unique employees: ${new Set(records.map(r => r.empId)).size}
-
-                Productivity Details:
-                ${productivitySummary}
-
-                Your analysis:
-            `;
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-            });
-            
-            setInsights(response.text);
-
-        } catch (e) {
-            console.error(e);
-            setError('Failed to generate insights. Please check the console for details.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    return (
-        <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm no-print">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-                <h3 className="text-lg font-medium text-slate-900 dark:text-white flex items-center">
-                    <SparklesIcon className="h-6 w-6 text-yellow-400 mr-2" />
-                    AI-Powered Insights
-                </h3>
-                <button
-                    onClick={generateInsights}
-                    disabled={isLoading}
-                    className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#28a745] disabled:bg-green-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed"
-                >
-                    {isLoading ? 'Generating...' : 'Generate Analysis'}
-                </button>
-            </div>
-            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 min-h-[8rem] flex items-center justify-center">
-                {isLoading && (
-                    <div className="flex flex-col items-center text-center">
-                         <svg className="animate-spin h-6 w-6 text-[#28a745] mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p className="text-slate-500 dark:text-slate-400">Analyzing data with Gemini...</p>
-                    </div>
-                )}
-                {error && <p className="text-sm text-center text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/50 rounded-md py-3 px-4">{error}</p>}
-                {insights && <SimpleMarkdown text={insights} />}
-                {!isLoading && !insights && !error && (
-                    <div className="text-center text-slate-500 dark:text-slate-400">
-                        <p>Click "Generate Analysis" to get AI-powered insights on your selected data.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
 
 const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
   let descendants: string[] = [];
@@ -317,6 +171,11 @@ const Dashboard: React.FC = () => {
                 </button>
             </PageHeader>
             
+            <div className="print-only mb-6 border-b border-black pb-4">
+                <h1 className="text-3xl font-bold text-black">{`Dashboard Report: ${projectName}`}</h1>
+                <p className="mt-1 text-lg text-slate-800">{`Date Range: ${dateRange.start} to ${dateRange.end}`}</p>
+            </div>
+            
             <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm no-print">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                     <div className="lg:col-span-1">
@@ -378,15 +237,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
             
-            <GeminiInsights 
-                records={filteredRecords}
-                progressRecords={allProgressRecords}
-                projects={allProjects}
-                projectIdsToFilter={projectIdsToFilter}
-                dateRange={dateRange}
-                projectName={projectName}
-            />
-
             <div className="no-print">
                 <div className="border-b border-slate-200 dark:border-slate-700">
                     <nav className="-mb-px flex space-x-8" aria-label="Tabs">

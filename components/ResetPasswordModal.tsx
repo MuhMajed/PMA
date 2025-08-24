@@ -1,7 +1,44 @@
 
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { User } from '../types';
 import Modal from './ui/Modal';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+
+const PasswordCriteria: React.FC<{ password: string, onValidationChange: (isValid: boolean) => void }> = ({ password, onValidationChange }) => {
+    const criteria = useMemo(() => ([
+        { label: 'At least 8 characters', valid: password.length >= 8 },
+        { label: 'Starts with a letter', valid: /^[a-zA-Z]/.test(password) || password.length === 0 },
+        { label: 'Contains an uppercase letter', valid: /[A-Z]/.test(password) },
+        { label: 'Contains a number', valid: /\d/.test(password) },
+        { label: 'Contains a special character', valid: /[!@#$%^&*(),.?":{}|<>]/.test(password) },
+    ]), [password]);
+
+    React.useEffect(() => {
+        onValidationChange(criteria.every(c => c.valid));
+    }, [criteria, onValidationChange]);
+
+    if (password.length === 0) return null;
+
+    return (
+        <div className="p-3 bg-slate-100 dark:bg-slate-700/50 rounded-md">
+            <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                {criteria.map(item => (
+                    <li key={item.label} className="flex items-center">
+                        {item.valid ? (
+                            <CheckCircleIcon className="h-4 w-4 text-green-500 mr-2" />
+                        ) : (
+                            <XCircleIcon className="h-4 w-4 text-red-500 mr-2" />
+                        )}
+                        <span>{item.label}</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
 
 interface ResetPasswordModalProps {
   user: User | null;
@@ -12,6 +49,7 @@ interface ResetPasswordModalProps {
 const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, onReset }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [error, setError] = useState('');
 
   if (!user) return null;
@@ -20,9 +58,9 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, 
     e.preventDefault();
     setError('');
 
-    if (!password) {
-      setError('Password cannot be empty.');
-      return;
+    if (!isPasswordValid) {
+        setError('Password does not meet all the required criteria.');
+        return;
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -35,6 +73,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, 
 
   const labelStyles = "block text-sm font-medium text-slate-700 dark:text-slate-300";
   const inputStyles = "mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100";
+  const isSubmitDisabled = !isPasswordValid || password !== confirmPassword;
 
   return (
     <Modal title={`Reset Password for ${user.name}`} onClose={onClose}>
@@ -55,6 +94,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, 
               className={inputStyles}
             />
           </div>
+          <PasswordCriteria password={password} onValidationChange={setIsPasswordValid} />
           <div>
             <label htmlFor="confirmNewPassword" className={labelStyles}>Confirm New Password</label>
             <input
@@ -75,7 +115,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, 
           <button type="button" onClick={onClose} className="inline-flex justify-center py-2 px-4 border border-slate-300 dark:border-slate-600 shadow-sm text-sm font-medium rounded-md text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
             Cancel
           </button>
-          <button type="submit" className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#28a745] hover:bg-green-700">
+          <button type="submit" disabled={isSubmitDisabled} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#28a745] hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Reset Password &amp; Notify User
           </button>
         </div>

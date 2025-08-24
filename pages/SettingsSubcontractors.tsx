@@ -7,10 +7,11 @@ import { PencilIcon } from '../components/icons/PencilIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { ImportIcon } from '../components/icons/ImportIcon';
 import { ExportIcon } from '../components/icons/ExportIcon';
-import { exportToExcel, importFromExcel } from '../utils/excel';
+import { exportToExcel, importFromExcel, downloadSubcontractorTemplate } from '../utils/excel';
 import { NATIONALITIES } from '../constants';
 import { useConfirmation } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
+import { DownloadIcon } from '../components/icons/DownloadIcon';
 
 interface SettingsSubcontractorsProps {
     subcontractors: Subcontractor[];
@@ -120,7 +121,11 @@ const SettingsSubcontractors: React.FC<SettingsSubcontractorsProps> = ({
                 title="Settings: Subcontractors"
                 subtitle="Manage all subcontractor company details."
             >
-                {!isReadOnly && <div className="flex space-x-3">
+                {!isReadOnly && <div className="flex flex-wrap gap-3">
+                    <button onClick={downloadSubcontractorTemplate} className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                        <DownloadIcon className="h-5 w-5 mr-2" />
+                        Download Template
+                    </button>
                     <label className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                         <ImportIcon className="h-5 w-5 mr-2" />
                         Import
@@ -195,7 +200,7 @@ const SettingsSubcontractors: React.FC<SettingsSubcontractorsProps> = ({
                         </tbody>
                     </table>
                 </div>
-                 <div className="flex items-center justify-end p-4 text-sm text-slate-500 dark:text-slate-400">
+                 <div className="flex items-center justify-between p-4 text-sm text-slate-500 dark:text-slate-400">
                      <span>Showing {filteredSubcontractors.length} of {subcontractors.length} subcontractors</span>
                 </div>
             </div>

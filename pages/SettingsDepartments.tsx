@@ -7,9 +7,10 @@ import { PencilIcon } from '../components/icons/PencilIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { ImportIcon } from '../components/icons/ImportIcon';
 import { ExportIcon } from '../components/icons/ExportIcon';
-import { exportToExcel, importFromExcel } from '../utils/excel';
+import { exportToExcel, importFromExcel, downloadDepartmentsTemplate } from '../utils/excel';
 import { useConfirmation } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
+import { DownloadIcon } from '../components/icons/DownloadIcon';
 
 interface SettingsDepartmentsProps {
     departments: string[];
@@ -105,6 +106,10 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
                 subtitle="Add, edit, or delete company departments."
             >
                 {!isReadOnly && <div className="flex space-x-3">
+                     <button onClick={downloadDepartmentsTemplate} className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                        <DownloadIcon className="h-5 w-5 mr-2" />
+                        Download Template
+                    </button>
                      <label className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                         <ImportIcon className="h-5 w-5 mr-2" />
                         Import
@@ -143,6 +148,9 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
                         </li>
                     ))}
                 </ul>
+                 <div className="flex items-center justify-between p-4 text-sm text-slate-500 dark:text-slate-400">
+                    <span>Showing {departments.length} departments</span>
+                </div>
             </div>
 
             {isModalOpen && (

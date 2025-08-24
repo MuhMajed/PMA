@@ -5,7 +5,7 @@ import Modal from '../components/ui/Modal';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { ImportIcon } from '../components/icons/ImportIcon';
 import { ExportIcon } from '../components/icons/ExportIcon';
-import { exportToExcel, importFromExcel, exportToBoqExcel } from '../utils/excel';
+import { exportToExcel, importFromExcel, exportToBoqExcel, downloadProjectsTemplate } from '../utils/excel';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
@@ -20,6 +20,7 @@ import { useConfirmation } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
 import { HIERARCHY, DEFAULT_HIERARCHY_LABELS } from '../constants';
 import { TagIcon } from '../components/icons/TagIcon';
+import { DownloadIcon } from '../components/icons/DownloadIcon';
 
 
 interface SettingsProjectsProps {
@@ -303,6 +304,10 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                  <div className="flex flex-wrap gap-3">
                     {!isReadOnly && (
                         <>
+                            <button onClick={downloadProjectsTemplate} className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                <DownloadIcon className="h-5 w-5 mr-2" />
+                                Download Template
+                            </button>
                             <label className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                                 <ImportIcon className="h-5 w-5 mr-2" /> Import
                                 <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImport} />

@@ -105,6 +105,15 @@ export let projects: Project[] = [
   { id: 'p4_khobar_area1', name: 'Substructure', parentId: 'p4_loc2', type: 'Level2' },
   { id: 'p4_khobar_area2', name: 'Superstructure', parentId: 'p4_loc2', type: 'Level2' },
   { id: 'p4_khobar_super_bld1', name: 'Zone 1 to 10', parentId: 'p4_khobar_area2', type: 'Level3' },
+  // Adding "None" options for Taawon Project
+  { id: 'p4_dammam_area1_none', name: 'None', parentId: 'p4_dammam_area1', type: 'Level3' },
+  { id: 'p4_dammam_area1_none_act', name: 'General Works', parentId: 'p4_dammam_area1_none', type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 },
+  { id: 'p4_dammam_area2_none', name: 'None', parentId: 'p4_dammam_area2', type: 'Level3' },
+  { id: 'p4_dammam_area2_none_act', name: 'General Works', parentId: 'p4_dammam_area2_none', type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 },
+  { id: 'p4_khobar_area1_none', name: 'None', parentId: 'p4_khobar_area1', type: 'Level3' },
+  { id: 'p4_khobar_area1_none_act', name: 'General Works', parentId: 'p4_khobar_area1_none', type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 },
+  { id: 'p4_khobar_area2_none', name: 'None', parentId: 'p4_khobar_area2', type: 'Level3' },
+  { id: 'p4_khobar_area2_none_act', name: 'General Works', parentId: 'p4_khobar_area2_none', type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 },
 ];
 
 // --- PROFESSIONS & DEPARTMENTS ---

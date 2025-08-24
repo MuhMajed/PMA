@@ -1,18 +1,18 @@
-import React, { useMemo, useCallback, useState } from 'react';
+
+import React, { useMemo, useCallback } from 'react';
 import { ManpowerRecord, Shift, Project, ProjectNodeType, User } from '../types';
 import { PencilIcon } from './icons/PencilIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
-import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { useConfirmation } from './ConfirmationProvider';
 import { DEFAULT_HIERARCHY_LABELS, HIERARCHY } from '../constants';
 
 interface ManpowerTableProps {
   records: ManpowerRecord[];
   projects: Project[];
-  onDelete: (id: string) => void;
   onEdit: (record: ManpowerRecord) => void;
+  onDelete: (id: string) => void;
   currentUser: User;
 }
 
@@ -20,7 +20,6 @@ const getProjectHierarchyLabels = (projectId: string, allProjects: Project[]): R
     let current = allProjects.find(p => p.id === projectId);
     if (!current) return DEFAULT_HIERARCHY_LABELS;
     
-    // Go up to the root
     while (current.parentId) {
         const parent = allProjects.find(p => p.id === current.parentId);
         if (!parent) break;
@@ -30,8 +29,7 @@ const getProjectHierarchyLabels = (projectId: string, allProjects: Project[]): R
     return { ...DEFAULT_HIERARCHY_LABELS, ...current.hierarchyLabels };
 }
 
-const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onDelete, onEdit, currentUser }) => {
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onEdit, onDelete, currentUser }) => {
   const { showConfirmation } = useConfirmation();
 
   const canDelete = currentUser.role === 'Admin' || currentUser.role === 'Project Manager';
@@ -67,21 +65,6 @@ const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onDele
           .join(' / ');
   }, [getProjectPath]);
 
-
-  const groupedRecords = useMemo(() => {
-      const groups = new Map<string, ManpowerRecord[]>();
-      records.forEach(record => {
-          const key = `${record.empId}-${record.project}-${record.date}`;
-          const group = groups.get(key) || [];
-          group.push(record);
-          groups.set(key, group);
-      });
-      return Array.from(groups.values());
-  }, [records]);
-
-  const toggleGroup = (key: string) => {
-    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
-  };
   
   const handleDelete = (record: ManpowerRecord) => {
       showConfirmation(
@@ -129,14 +112,9 @@ const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onDele
           </tr>
         </thead>
         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-          {groupedRecords.map((group) => {
-            const groupKey = `${group[0].empId}-${group[0].project}-${group[0].date}`;
-            const isExpanded = !!expandedGroups[groupKey];
-            const fullPath = getFullPathString(group[0].project);
-            
-            if (group.length === 1) {
-              const record = group[0];
-              return (
+          {records.map((record) => {
+            const fullPath = getFullPathString(record.project);
+            return (
                 <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{record.empId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{record.name}</td>
@@ -147,60 +125,16 @@ const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onDele
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{renderShift(record.shift)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 text-center">{record.hoursWorked ?? 'N/A'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
-                    <button onClick={() => onEdit(record)} className="text-[#28a745] hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#28a745] rounded" aria-label={`Edit ${record.name}`}><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
-                    {canDelete && <button 
-                        onClick={() => handleDelete(record)}
-                        className="text-red-600 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded" aria-label={`Delete ${record.name}`}><TrashIcon className="h-5 w-5 pointer-events-none" /></button>}
-                  </td>
-                </tr>
-              );
-            }
-
-            // Summary row logic
-            const summaryRecord = group[0];
-            const totalHours = group.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
-            const uniqueShifts = [...new Set(group.map(r => r.shift))];
-
-            return (
-              <React.Fragment key={groupKey}>
-                <tr className="bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-900 dark:text-white">
-                     <button onClick={() => toggleGroup(groupKey)} className="flex items-center space-x-2 w-full text-left">
-                        <ChevronRightIcon className={`h-4 w-4 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} />
-                        <span>{summaryRecord.empId}</span>
+                    <button onClick={() => onEdit(record)} className="text-[#28a745] hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <PencilIcon className="h-5 w-5" />
                     </button>
+                    {canDelete && (
+                        <button onClick={() => handleDelete(record)} className="text-red-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            <TrashIcon className="h-5 w-5" />
+                        </button>
+                    )}
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{summaryRecord.name}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{summaryRecord.date}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{summaryRecord.profession}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{summaryRecord.subcontractor}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 max-w-xs truncate" title={fullPath}>{fullPath || 'N/A'}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{uniqueShifts.length > 1 ? 'Multiple' : renderShift(uniqueShifts[0])}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-slate-900 dark:text-white text-center">{totalHours.toFixed(1)}</td>
-                  <td className="px-6 py-3"></td>
                 </tr>
-                {isExpanded && group.map((record) => {
-                  const childFullPath = getFullPathString(record.project);
-                  return (
-                    <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-                      <td className="pl-12 pr-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700 dark:text-slate-300">{record.empId}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{record.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{record.date}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{record.profession}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{record.subcontractor}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 max-w-xs truncate" title={childFullPath}>{childFullPath || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{renderShift(record.shift)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 text-center">{record.hoursWorked ?? 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
-                          <button onClick={() => onEdit(record)} className="text-[#28a745] hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#28a745] rounded" aria-label={`Edit ${record.name}`}><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
-                          {canDelete && <button 
-                            onClick={() => handleDelete(record)}
-                            className="text-red-600 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded" aria-label={`Delete ${record.name}`}><TrashIcon className="h-5 w-5 pointer-events-none" /></button>}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </React.Fragment>
             );
           })}
         </tbody>

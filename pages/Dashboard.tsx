@@ -1,22 +1,14 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { ManpowerRecord, Project, Subcontractor, ProgressRecord, Employee, Shift, EmployeeType, User } from '../types';
-import { Theme } from '../App';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useStore } from '../store/appStore';
+import { useManpowerRecordsForCurrentUser, useProjectsForCurrentUser, useProgressRecordsForCurrentUser } from '../hooks/useData';
 import DashboardMetrics, { CrossFilters } from '../components/DashboardMetrics';
 import ProductivityDashboard from '../components/ProductivityDashboard';
 import PageHeader from '../components/ui/PageHeader';
 import { ProjectMultiSelectFilter } from '../components/ProjectMultiSelectFilter';
+import { Project } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import * as api from '../utils/api';
 
-interface DashboardProps {
-    records: ManpowerRecord[];
-    projects: Project[];
-    progressRecords: ProgressRecord[];
-    subcontractors: Subcontractor[];
-    employees: Employee[];
-    selectedProjects: string[];
-    setSelectedProjects: (ids: string[]) => void;
-    theme: Theme;
-    currentUser: User;
-}
 
 const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
   let descendants: string[] = [];
@@ -31,8 +23,8 @@ const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
 const getProjectName = (projects: Project[], selectedIds: string[]): string => {
     if (selectedIds.length === 0) return "No projects selected";
     
-    const allProjectIds = projects.map(p => p.id);
-    if (selectedIds.length === allProjectIds.length && selectedIds.every(id => allProjectIds.includes(id))) {
+    const rootProjectIds = projects.filter(p => p.parentId === null).map(p => p.id);
+    if (selectedIds.length === rootProjectIds.length && selectedIds.every(id => rootProjectIds.includes(id))) {
         return "All Projects";
     }
 
@@ -42,7 +34,8 @@ const getProjectName = (projects: Project[], selectedIds: string[]): string => {
         return !project?.parentId || !selectedIdSet.has(project.parentId);
     }).map(id => projects.find(p => p.id === id)?.name).filter(Boolean);
 
-    if (topLevelSelected.length === 0) return "a sub-item"; // Fallback
+    if (topLevelSelected.length === 0 && selectedIds.length > 0) return "a sub-item";
+    if (topLevelSelected.length === 0) return "No projects selected";
     return topLevelSelected.join(', ');
 };
 
@@ -67,24 +60,27 @@ const getInitialDateRange = (range: DateRangePreset) => {
     };
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ 
-    records, 
-    projects, 
-    progressRecords,
-    subcontractors,
-    employees,
-    selectedProjects, 
-    setSelectedProjects,
-    theme,
-    currentUser
-}) => {
+const Dashboard: React.FC = () => {
+    const theme = useStore(state => state.theme);
+    const { data: subcontractors = [] } = useQuery({ queryKey: ['subcontractors'], queryFn: api.fetchSubcontractors });
+    const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: api.fetchEmployees });
     
+    const { records: allRecords } = useManpowerRecordsForCurrentUser();
+    const { projects: allProjects } = useProjectsForCurrentUser();
+    const { progressRecords: allProgressRecords } = useProgressRecordsForCurrentUser();
+
+    const [selectedProjects, setSelectedProjects] = useState<string[]>(() => allProjects.filter(p => p.parentId === null).map(p => p.id));
     const [activeRange, setActiveRange] = useState<DateRangePreset>('30d');
     const [dateRange, setDateRange] = useState(() => getInitialDateRange('30d'));
     const [activeSubpage, setActiveSubpage] = useState<Subpage>('manpower');
     const [crossFilters, setCrossFilters] = useState<CrossFilters>({ subcontractor: null, shift: null, type: null });
     
-    // Clear cross-filters when project or date range changes
+    useEffect(() => {
+        if (allProjects.length > 0 && selectedProjects.length === 0) {
+            setSelectedProjects(allProjects.filter(p => p.parentId === null).map(p => p.id));
+        }
+    }, [allProjects, selectedProjects.length]);
+    
     useEffect(() => {
         setCrossFilters({ subcontractor: null, shift: null, type: null });
     }, [selectedProjects, dateRange]);
@@ -105,11 +101,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         const allIds = new Set<string>();
         selectedProjects.forEach(id => {
             allIds.add(id);
-            const descendants = getDescendantIds(id, projects);
+            const descendants = getDescendantIds(id, allProjects);
             descendants.forEach(descId => allIds.add(descId));
         });
         return Array.from(allIds);
-    }, [selectedProjects, projects]);
+    }, [selectedProjects, allProjects]);
 
 
     const filteredRecords = useMemo(() => {
@@ -118,22 +114,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         const start = dateRange.start;
         const end = dateRange.end;
 
-        return records.filter(record => 
+        return allRecords.filter(record => 
             projectIdsToFilter.includes(record.project) &&
             record.date >= start &&
             record.date <= end
         );
-    }, [records, projectIdsToFilter, dateRange]);
+    }, [allRecords, projectIdsToFilter, dateRange]);
     
-    // Stats Calculations
     const totalEmployees = useMemo(() => new Set(filteredRecords.map(r => r.empId)).size, [filteredRecords]);
     
     const todaysHeadcount = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
-        return records.filter(r => 
+        return allRecords.filter(r => 
             r.date === today && projectIdsToFilter.includes(r.project)
         ).length;
-    }, [records, projectIdsToFilter]);
+    }, [allRecords, projectIdsToFilter]);
 
     const avgDailyManpower = useMemo(() => {
         if (!filteredRecords.length || !dateRange.start || !dateRange.end) return 0;
@@ -145,7 +140,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     }, [filteredRecords, dateRange]);
 
 
-    const projectName = getProjectName(projects, selectedProjects);
+    const projectName = getProjectName(allProjects, selectedProjects);
 
     const rangePresets: { id: DateRangePreset, label: string }[] = [
         { id: 'today', label: 'Today' },
@@ -175,7 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             Project
                         </label>
                         <ProjectMultiSelectFilter 
-                            projects={projects}
+                            projects={allProjects}
                             selectedIds={selectedProjects}
                             onSelectionChange={setSelectedProjects}
                         />
@@ -254,7 +249,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                      <DashboardMetrics 
                         records={filteredRecords} 
                         subcontractors={subcontractors} 
-                        projects={projects}
+                        projects={allProjects}
                         employees={employees}
                         selectedProjects={selectedProjects}
                         theme={theme}
@@ -268,8 +263,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {activeSubpage === 'productivity' && (
                     <ProductivityDashboard
                         records={filteredRecords}
-                        projects={projects}
-                        progressRecords={progressRecords}
+                        projects={allProjects}
+                        progressRecords={allProgressRecords}
                         projectIdsToFilter={projectIdsToFilter}
                         theme={theme}
                     />

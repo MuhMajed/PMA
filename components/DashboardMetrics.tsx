@@ -1,7 +1,7 @@
 
+
 import React, { useMemo, useRef } from 'react';
-import { ManpowerRecord, Subcontractor, Project, Employee, Shift, EmployeeType } from '../types';
-import { Theme } from '../App';
+import { ManpowerRecord, Subcontractor, Project, Employee, Shift, EmployeeType, Theme } from '../types';
 import { Pie, Bar, getElementAtEvent } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler } from 'chart.js';
 import { UsersIcon } from './icons/UsersIcon';

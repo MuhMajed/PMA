@@ -7,6 +7,8 @@ import { ProjectTreeSelect } from '../components/ProjectTreeSelect';
 import { PencilIcon } from '../components/icons/PencilIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { useConfirmation } from '../components/ConfirmationProvider';
+import { ExportIcon } from '../components/icons/ExportIcon';
+import { exportToExcel } from '../utils/excel';
 
 interface ProgressRecordPageProps {
     projects: Project[];
@@ -26,6 +28,9 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
     const [manualPercentage, setManualPercentage] = useState<number | ''>('');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const { showConfirmation } = useConfirmation();
+
+    const canModify = currentUser.role === 'Admin' || currentUser.role === 'Data Entry';
+    const canDelete = currentUser.role === 'Admin';
 
     const selectedActivity = useMemo(() => projects.find(p => p.id === selectedActivityId), [projects, selectedActivityId]);
     
@@ -170,100 +175,126 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
     const finalPercentage = selectedActivity?.totalQty ? (finalCumulativeQty / selectedActivity.totalQty) * 100 : 0;
     
     const currentCumulativeQtyForDisplay = getCumulativeBeforeDate(selectedDate);
-    const canDelete = currentUser.role !== 'Data Entry';
+
+    const handleExport = () => {
+        if (!selectedActivity) return;
+        const dataToExport = cumulativeData.map(rec => {
+            const percentage = selectedActivity.totalQty 
+                ? (rec.cumulativeQty / selectedActivity.totalQty) * 100 
+                : rec.manualPercentage ?? null;
+            return {
+                Date: rec.date,
+                'Daily Qty': rec.qty.toFixed(2),
+                'Cumulative Qty': rec.cumulativeQty.toFixed(2),
+                'Progress %': percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'
+            };
+        });
+        exportToExcel(dataToExport, `Progress_Report_${selectedActivity.name}`);
+    };
 
     return (
         <div className="space-y-6">
             <PageHeader
                 title="Progress Record"
                 subtitle="Select an activity to record or view daily progress."
-            />
+            >
+                 <button
+                    onClick={handleExport}
+                    disabled={!selectedActivity || cumulativeData.length === 0}
+                    className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:bg-slate-50 disabled:cursor-not-allowed dark:disabled:bg-slate-700"
+                >
+                    <ExportIcon className="h-5 w-5 mr-2" />
+                    Export
+                </button>
+            </PageHeader>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
-                        <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{recordToEdit ? `Editing Record for ${recordToEdit.date}` : 'Record Progress'}</h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className={recordToEdit ? 'pointer-events-none opacity-60' : ''}>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Activity</label>
-                                <ProjectTreeSelect
-                                    projects={projects}
-                                    selectedId={selectedActivityId}
-                                    onSelect={handleActivitySelect}
-                                    placeholder="Select an activity..."
-                                    selectableNodeTypes={['Activity']}
-                                />
-                            </div>
-                            
-                            {selectedActivityId && (
-                                <>
-                                    <hr className="border-slate-200 dark:border-slate-700"/>
-                                    <div>
-                                        <label htmlFor="date-picker" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-                                        <div className="flex">
-                                            <input type="date" id="date-picker" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-                                                className="block w-full pl-3 pr-2 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-l-md"
-                                                max={new Date().toISOString().split('T')[0]}
-                                                disabled={!!recordToEdit}
-                                            />
-                                             {!recordToEdit && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-                                                    className="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 focus:border-[#28a745] focus:outline-none focus:ring-1 focus:ring-[#28a745]"
-                                                >
-                                                    Today
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                            {recordToEdit ? 'Daily Quantity Executed' : 'Cumulative Quantity Executed'}
-                                        </label>
-                                        <div className="relative">
-                                            <input type="number" id="quantity" value={quantity} onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                                                className="block w-full pl-3 pr-12 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
-                                                placeholder={recordToEdit ? '' : `Current is ${currentCumulativeQtyForDisplay.toFixed(2)}`}
-                                                step="any" min={recordToEdit ? 0 : currentCumulativeQtyForDisplay}
-                                            />
-                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                <span className="text-slate-500 sm:text-sm">{selectedActivity?.uom}</span>
+            <div className={`grid grid-cols-1 ${canModify ? 'lg:grid-cols-3' : ''} gap-6`}>
+                {canModify && (
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
+                            <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{recordToEdit ? `Editing Record for ${recordToEdit.date}` : 'Record Progress'}</h3>
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div className={recordToEdit ? 'pointer-events-none opacity-60' : ''}>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Activity</label>
+                                    <ProjectTreeSelect
+                                        projects={projects}
+                                        selectedId={selectedActivityId}
+                                        onSelect={handleActivitySelect}
+                                        placeholder="Select an activity..."
+                                        selectableNodeTypes={['Activity']}
+                                    />
+                                </div>
+                                
+                                {selectedActivityId && (
+                                    <>
+                                        <hr className="border-slate-200 dark:border-slate-700"/>
+                                        <div>
+                                            <label htmlFor="date-picker" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+                                            <div className="flex">
+                                                <input type="date" id="date-picker" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                                                    className="block w-full pl-3 pr-2 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-l-md"
+                                                    max={new Date().toISOString().split('T')[0]}
+                                                    disabled={!!recordToEdit}
+                                                />
+                                                {!recordToEdit && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                                                        className="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 focus:border-[#28a745] focus:outline-none focus:ring-1 focus:ring-[#28a745]"
+                                                    >
+                                                        Today
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
-                                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                            {recordToEdit ? 'Enter the quantity executed only for this day.' : 'Enter the total quantity completed up to the selected date.'}
-                                        </p>
-                                    </div>
-                                    {!selectedActivity.totalQty && (
                                         <div>
-                                            <label htmlFor="manualPercentage" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                {recordToEdit ? 'Manual Progress % (Optional)' : 'Cumulative Progress % (Optional)'}
+                                            <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                {recordToEdit ? 'Daily Quantity Executed' : 'Cumulative Quantity Executed'}
                                             </label>
-                                             <input type="number" id="manualPercentage" value={manualPercentage} onChange={(e) => setManualPercentage(e.target.value === '' ? '' : Number(e.target.value))}
-                                                className="block w-full pl-3 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
-                                                placeholder="Enter % if no total Qty"
-                                                step="any" min="0" max="100"
-                                            />
+                                            <div className="relative">
+                                                <input type="number" id="quantity" value={quantity} onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+                                                    className="block w-full pl-3 pr-12 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
+                                                    placeholder={recordToEdit ? '' : `Current is ${currentCumulativeQtyForDisplay.toFixed(2)}`}
+                                                    step="any" min={recordToEdit ? 0 : currentCumulativeQtyForDisplay}
+                                                />
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <span className="text-slate-500 sm:text-sm">{selectedActivity?.uom}</span>
+                                                </div>
+                                            </div>
+                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                {recordToEdit ? 'Enter the quantity executed only for this day.' : 'Enter the total quantity completed up to the selected date.'}
+                                            </p>
                                         </div>
-                                    )}
-                                    <div className="flex space-x-3">
-                                        {recordToEdit && (
-                                            <button type="button" onClick={() => setRecordToEdit(null)} className="w-full flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
-                                                Cancel Edit
-                                            </button>
+                                        {!selectedActivity.totalQty && (
+                                            <div>
+                                                <label htmlFor="manualPercentage" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                    {recordToEdit ? 'Manual Progress % (Optional)' : 'Cumulative Progress % (Optional)'}
+                                                </label>
+                                                <input type="number" id="manualPercentage" value={manualPercentage} onChange={(e) => setManualPercentage(e.target.value === '' ? '' : Number(e.target.value))}
+                                                    className="block w-full pl-3 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
+                                                    placeholder="Enter % if no total Qty"
+                                                    step="any" min="0" max="100"
+                                                />
+                                            </div>
                                         )}
-                                        <button type="submit" disabled={!selectedActivityId} className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700 disabled:bg-green-300">
-                                            <PlusIcon className="h-5 w-5 mr-2" /> {recordToEdit ? 'Update Record' : 'Add Record'}
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </form>
+                                        <div className="flex space-x-3">
+                                            {recordToEdit && (
+                                                <button type="button" onClick={() => setRecordToEdit(null)} className="w-full flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                                    Cancel Edit
+                                                </button>
+                                            )}
+                                            <button type="submit" disabled={!selectedActivityId} className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700 disabled:bg-green-300">
+                                                <PlusIcon className="h-5 w-5 mr-2" /> {recordToEdit ? 'Update Record' : 'Add Record'}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </form>
+                        </div>
                     </div>
-                </div>
+                )}
 
-                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
+                <div className={canModify ? "lg:col-span-2 bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm" : "bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm"}>
                    {selectedActivity ? (
                     <>
                         <div className="pb-4 border-b border-slate-200 dark:border-slate-700 mb-4">
@@ -292,7 +323,7 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                         <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Daily Qty</th>
                                         <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Cumulative Qty</th>
                                         <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Progress %</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>
+                                        {canModify && <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
@@ -306,12 +337,14 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400 text-right">
                                                 {percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
-                                                <button onClick={() => setRecordToEdit(rec)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
-                                                {canDelete && <button 
-                                                   onClick={() => handleDelete(rec)}
-                                                   className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5 pointer-events-none" /></button>}
-                                            </td>
+                                            {canModify && (
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                                                    <button onClick={() => setRecordToEdit(rec)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
+                                                    {canDelete && <button 
+                                                    onClick={() => handleDelete(rec)}
+                                                    className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5 pointer-events-none" /></button>}
+                                                </td>
+                                            )}
                                         </tr>
                                     )})}
                                 </tbody>
@@ -322,7 +355,11 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                         </div>
                     </>
                    ) : (
-                        <p className="text-center text-slate-500 dark:text-slate-400 py-8">Please select an activity to view progress.</p>
+                        <div className="flex items-center justify-center h-full">
+                            <p className="text-center text-slate-500 dark:text-slate-400 py-8">
+                                {canModify ? 'Please select an activity to record or view progress.' : 'Please select an activity to view progress.'}
+                            </p>
+                        </div>
                    )}
                 </div>
             </div>

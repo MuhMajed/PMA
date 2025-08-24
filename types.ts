@@ -98,3 +98,16 @@ export interface User {
 
 export type Profession = string;
 export type Department = string;
+
+export type Page = 
+  | 'dashboard'
+  | 'manpower-records'
+  | 'progress-record'
+  | 'settings-employees'
+  | 'settings-projects'
+  | 'settings-professions'
+  | 'settings-departments'
+  | 'settings-subcontractors'
+  | 'settings-users';
+  
+export type Theme = 'light' | 'dark';

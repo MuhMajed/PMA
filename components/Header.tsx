@@ -1,8 +1,7 @@
 import React from 'react';
 import { MenuIcon } from './icons/MenuIcon';
 import ThemeToggle from './ThemeToggle';
-import { Theme } from '../App';
-import { User } from '../types';
+import { Theme, User } from '../types';
 import { LogoutIcon } from './icons/LogoutIcon';
 
 interface HeaderProps {

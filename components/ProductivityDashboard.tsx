@@ -1,6 +1,6 @@
+
 import React, { useMemo, useState } from 'react';
-import { ManpowerRecord, ProgressRecord, Project } from '../types';
-import { Theme } from '../App';
+import { ManpowerRecord, ProgressRecord, Project, Theme } from '../types';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler, ChartDataset } from 'chart.js';
 

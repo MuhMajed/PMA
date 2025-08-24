@@ -121,6 +121,12 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, project
                                     .filter(Boolean)
                                     .join(', ');
                                 
+                                const assignedIdsSet = new Set(user.assignedProjects || []);
+                                const topLevelAssignmentCount = (user.assignedProjects || []).filter(id => {
+                                    const project = projectsById.get(id);
+                                    return !project?.parentId || !assignedIdsSet.has(project.parentId);
+                                }).length;
+
                                 return (
                                 <tr key={user.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{user.name}</td>
@@ -137,7 +143,7 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, project
                                              <span className="italic">All Projects</span>
                                         ) : (
                                             <Tooltip content={assignedProjectNames}>
-                                                <span>{user.assignedProjects.length} project(s)</span>
+                                                <span>{topLevelAssignmentCount} assignment(s)</span>
                                             </Tooltip>
                                         )}
                                     </td>

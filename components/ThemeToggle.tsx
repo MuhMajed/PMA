@@ -1,5 +1,5 @@
 import React from 'react';
-import { Theme } from '../App';
+import { Theme } from '../types';
 import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
 

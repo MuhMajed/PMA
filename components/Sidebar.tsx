@@ -1,6 +1,8 @@
+
+
 import React from 'react';
-import { Page } from '../App';
-import { User } from '../types';
+import { Page, User } from '../types';
+import { useProjectsForCurrentUser } from '../hooks/useData';
 import { DashboardIcon } from './icons/DashboardIcon';
 import { ReportIcon } from './icons/ReportIcon';
 import { GearIcon } from './icons/GearIcon';
@@ -48,9 +50,12 @@ const NavLink: React.FC<{
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentPage, setCurrentPage, currentUser }) => {
     
+    const { projects: visibleProjects } = useProjectsForCurrentUser();
     const canViewDashboards = currentUser.role === 'Admin' || currentUser.role === 'Project Manager';
-    const canViewSettings = currentUser.role === 'Admin' || currentUser.role === 'Project Manager';
+    const canViewSettings = currentUser.role === 'Admin';
     const isAdmin = currentUser.role === 'Admin';
+    
+    const hasActivitiesInScope = visibleProjects.some(p => p.type === 'Activity');
     
     return (
         <aside
@@ -64,16 +69,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentPage, setCurrentPage, 
                 <ul className="space-y-2">
                     {canViewDashboards && <NavLink page="dashboard" label="Dashboard" icon={<DashboardIcon className="w-6 h-6" />} isCurrent={currentPage === 'dashboard'} onClick={setCurrentPage} />}
                     
-                    <li>
-                        <div className={`flex items-center p-2 text-base font-normal rounded-lg text-slate-500 dark:text-slate-400 mt-4`}>
-                            <ReportIcon className="w-6 h-6" />
-                            <span className="ml-3">Reports</span>
-                        </div>
-                    </li>
-                     <ul className="space-y-2">
-                        <NavLink page="manpower-records" label="Manpower Records" icon={<UsersGroupIcon className="w-5 h-5" />} isCurrent={currentPage === 'manpower-records'} onClick={setCurrentPage} isSubLink />
-                        <NavLink page="progress-record" label="Progress Record" icon={<ChartBarIcon className="w-5 h-5" />} isCurrent={currentPage === 'progress-record'} onClick={setCurrentPage} isSubLink />
-                    </ul>
+                    {hasActivitiesInScope && (
+                        <>
+                            <li>
+                                <div className={`flex items-center p-2 text-base font-normal rounded-lg text-slate-500 dark:text-slate-400 mt-4`}>
+                                    <ReportIcon className="w-6 h-6" />
+                                    <span className="ml-3">Reports</span>
+                                </div>
+                            </li>
+                            <ul className="space-y-2">
+                                <NavLink page="manpower-records" label="Manpower Records" icon={<UsersGroupIcon className="w-5 h-5" />} isCurrent={currentPage === 'manpower-records'} onClick={setCurrentPage} isSubLink />
+                                <NavLink page="progress-record" label="Progress Record" icon={<ChartBarIcon className="w-5 h-5" />} isCurrent={currentPage === 'progress-record'} onClick={setCurrentPage} isSubLink />
+                            </ul>
+                        </>
+                    )}
 
                     {canViewSettings && (
                         <>

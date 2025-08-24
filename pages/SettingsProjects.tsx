@@ -34,6 +34,7 @@ interface SettingsProjectsProps {
 
 interface ProjectFormData {
     name: string;
+    type: ProjectNodeType | '';
     uom: string;
     totalQty: number | '';
     universalNorm: number | '';
@@ -44,6 +45,7 @@ interface ProjectFormData {
 
 const initialFormData: ProjectFormData = {
     name: '',
+    type: '',
     uom: '',
     totalQty: '',
     universalNorm: '',
@@ -120,7 +122,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
         return { breadcrumbs, currentItems, currentParentNode };
     }, [currentParentId, projects]);
     
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         const isNumeric = ['totalQty', 'universalNorm', 'companyNorm', 'rate'].includes(name);
         setFormData(prev => ({
@@ -152,6 +154,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
 
              setFormData({
                 name: project.name,
+                type: project.type,
                 uom: project.uom || '',
                 totalQty: project.totalQty ?? '',
                 universalNorm: project.universalNorm ?? '',
@@ -160,7 +163,8 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                 hierarchyLabels: labelsToEdit,
             });
         } else {
-            setFormData(initialFormData);
+            const nextType = getNextNodeType(currentParentNode?.type);
+            setFormData({...initialFormData, type: nextType || ''});
         }
         setIsModalOpen(true);
     };
@@ -177,19 +181,27 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
         return labels;
     }, [currentParentId, projects]);
 
-    const nextNodeType = getNextNodeType(currentParentNode?.type);
-    const nodeTypeForModal = projectToEdit?.type || nextNodeType;
+    const availableNodeTypesForNew = useMemo(() => {
+        const parentType = currentParentNode?.type;
+        if (currentParentId === null) return HIERARCHY.filter(t => t === 'Project');
+        if (!parentType) return [];
+        
+        const parentIndex = HIERARCHY.indexOf(parentType);
+        if (parentIndex === -1 || parentIndex === HIERARCHY.length - 1) return [];
+        
+        return HIERARCHY.slice(parentIndex + 1);
+    }, [currentParentNode, currentParentId]);
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (isReadOnly) return;
 
-        if (formData.name.trim() === '' || !nodeTypeForModal) {
-            alert('Name cannot be empty.');
+        if (formData.name.trim() === '' || !formData.type) {
+            alert('Name and type cannot be empty.');
             return;
         }
 
-        if (nodeTypeForModal === 'Activity') {
+        if (formData.type === 'Activity') {
             if (formData.universalNorm === '' || isNaN(Number(formData.universalNorm)) || Number(formData.universalNorm) < 0) {
                 alert('Universal Norm is mandatory for activities and must be a number equal to or greater than 0.');
                 return;
@@ -221,7 +233,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
             const newProject: Omit<Project, 'id'> = {
                 name: formData.name,
                 parentId: currentParentId,
-                type: nodeTypeForModal,
+                type: formData.type,
             };
             if (newProject.type === 'Activity') {
                 newProject.uom = formData.uom;
@@ -275,10 +287,12 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
         event.target.value = '';
     };
 
-    const nextNodeTypeLabel = nextNodeType ? hierarchyLabels[nextNodeType] : 'Cannot Add';
+    const canAddNewNode = availableNodeTypesForNew.length > 0;
+    const nextNodeTypeLabel = canAddNewNode ? hierarchyLabels[availableNodeTypesForNew[0]] : 'Cannot Add';
+    
     const modalTitle = projectToEdit 
         ? `Edit ${hierarchyLabels[projectToEdit.type]}` 
-        : `Add New ${nextNodeTypeLabel}`;
+        : `Add New Item`;
 
     return (
         <div className="space-y-6">
@@ -299,9 +313,9 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                              <button onClick={handleExportBoq} className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
                                 <ExportIcon className="h-5 w-5 mr-2" /> Export BOQ
                             </button>
-                            <button onClick={() => openModal(null)} disabled={!nextNodeType} className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700 disabled:bg-green-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed">
+                            <button onClick={() => openModal(null)} disabled={!canAddNewNode} className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700 disabled:bg-green-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed">
                                 <PlusIcon className="h-5 w-5 mr-2" />
-                                {nextNodeType ? `Add ${nextNodeTypeLabel}` : 'Cannot Add'}
+                                {canAddNewNode ? `Add ${nextNodeTypeLabel}` : 'Cannot Add'}
                             </button>
                         </>
                     )}
@@ -395,9 +409,25 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                 <Modal title={modalTitle} onClose={closeModal} size="2xl">
                     <form onSubmit={handleSubmit}>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            {!projectToEdit && canAddNewNode && (
+                                <div>
+                                    <label htmlFor="type" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                        Type <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        id="type" name="type" value={formData.type} onChange={handleInputChange}
+                                        required
+                                        className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
+                                    >
+                                        {availableNodeTypesForNew.map(type => (
+                                            <option key={type} value={type}>{hierarchyLabels[type]}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                    Name <span className="text-red-500">*</span>
+                                    {formData.type ? hierarchyLabels[formData.type as ProjectNodeType] : 'Name'} <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text" id="name" name="name" value={formData.name} onChange={handleInputChange}
@@ -406,7 +436,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                                 />
                             </div>
                             
-                            {nodeTypeForModal === 'Activity' && (
+                            {formData.type === 'Activity' && (
                                 <>
                                     <div className="grid grid-cols-2 gap-4 pt-2">
                                         <div>

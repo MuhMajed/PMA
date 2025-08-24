@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { ManpowerRecord, ProgressRecord, Project, Theme } from '../types';
 import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler, ChartDataset } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler, ChartDataset, ChartOptions } from 'chart.js';
 
 ChartJS.register(CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler);
 
@@ -110,11 +110,12 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
 
     }, [records, progressRecords, activities, showUniversalNorm, showCompanyNorm]);
 
-    const chartOptions = useMemo(() => {
+    const chartOptions: ChartOptions<'line'> = useMemo(() => {
         const legendColor = theme === 'dark' ? '#cbd5e1' : '#475569';
         const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
 
         return {
+            animation: false,
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -153,9 +154,9 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
     }, [theme]);
 
     return (
-        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-[60vh] flex flex-col">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-[60vh] print:h-[80vh] flex flex-col">
             {activities.length === 1 && (
-                <div className="flex justify-end items-center space-x-4 pb-2 -mt-2">
+                <div className="flex justify-end items-center space-x-4 pb-2 -mt-2 no-print">
                     <label className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
                         <input type="checkbox" checked={showUniversalNorm} onChange={() => setShowUniversalNorm(s => !s)} className="rounded text-red-500 focus:ring-red-500 dark:bg-slate-600 dark:border-slate-500" />
                         <span>Universal Norm</span>

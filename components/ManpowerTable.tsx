@@ -1,6 +1,7 @@
 
 
-import React, { useMemo, useCallback } from 'react';
+
+import React, { useMemo, useCallback, useState } from 'react';
 import { ManpowerRecord, Shift, Project, ProjectNodeType, User } from '../types';
 import { PencilIcon } from './icons/PencilIcon';
 import { TrashIcon } from './icons/TrashIcon';
@@ -8,6 +9,70 @@ import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { useConfirmation } from './ConfirmationProvider';
 import { DEFAULT_HIERARCHY_LABELS, HIERARCHY } from '../constants';
+import { ChevronUpDownIcon } from './icons/ChevronUpDownIcon';
+
+type SortDirection = 'ascending' | 'descending';
+
+interface SortConfig {
+  key: keyof ManpowerRecord | 'fullPath';
+  direction: SortDirection;
+}
+
+const useSortableData = (items: ManpowerRecord[], getPath: (id: string) => string, config: SortConfig | null = null) => {
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(config);
+
+  const sortedItems = useMemo(() => {
+    let sortableItems = [...items];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue, bValue;
+
+        if (sortConfig.key === 'fullPath') {
+            aValue = getPath(a.project);
+            bValue = getPath(b.project);
+        } else {
+            aValue = a[sortConfig.key as keyof ManpowerRecord];
+            bValue = b[sortConfig.key as keyof ManpowerRecord];
+        }
+        
+        if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [items, sortConfig, getPath]);
+
+  const requestSort = (key: keyof ManpowerRecord | 'fullPath') => {
+    let direction: SortDirection = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  return { items: sortedItems, requestSort, sortConfig };
+};
+
+
+const SortableHeader: React.FC<{
+    sortKey: keyof ManpowerRecord | 'fullPath',
+    title: string,
+    requestSort: (key: any) => void,
+    sortConfig: SortConfig | null
+}> = ({ sortKey, title, requestSort, sortConfig }) => {
+    const isSorted = sortConfig?.key === sortKey;
+    const direction = isSorted ? sortConfig?.direction : undefined;
+    
+    return (
+        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(sortKey)}>
+            <div className="flex items-center">
+                <span>{title}</span>
+                <ChevronUpDownIcon className={`h-4 w-4 ml-1.5 ${isSorted ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`} />
+            </div>
+        </th>
+    );
+};
 
 interface ManpowerTableProps {
   records: ManpowerRecord[];
@@ -65,6 +130,8 @@ const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onEdit
           .filter(Boolean)
           .join(' / ');
   }, [getProjectPath]);
+  
+  const { items: sortedRecords, requestSort, sortConfig } = useSortableData(records, getFullPathString, { key: 'date', direction: 'descending' });
 
   
   const handleDelete = (record: ManpowerRecord) => {
@@ -99,21 +166,21 @@ const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onEdit
       <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
         <thead className="bg-slate-50 dark:bg-slate-700">
           <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Emp ID</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Name</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Date</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Profession</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Subcontractor</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Activity / Location</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Shift</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Hours Worked</th>
+            <SortableHeader sortKey="empId" title="Emp ID" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="name" title="Name" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="date" title="Date" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="profession" title="Profession" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="subcontractor" title="Subcontractor" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="fullPath" title="Activity / Location" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="shift" title="Shift" requestSort={requestSort} sortConfig={sortConfig} />
+            <SortableHeader sortKey="hoursWorked" title="Hours Worked" requestSort={requestSort} sortConfig={sortConfig} />
             <th scope="col" className="relative px-6 py-3">
               <span className="sr-only">Actions</span>
             </th>
           </tr>
         </thead>
         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-          {records.map((record) => {
+          {sortedRecords.map((record) => {
             const fullPath = getFullPathString(record.project);
             return (
                 <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">

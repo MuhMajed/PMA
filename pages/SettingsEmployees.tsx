@@ -8,7 +8,62 @@ import { TrashIcon } from '../components/icons/TrashIcon';
 import { ImportIcon } from '../components/icons/ImportIcon';
 import { ExportIcon } from '../components/icons/ExportIcon';
 import { downloadEmployeeTemplate, importFromExcel, exportToExcel } from '../utils/excel';
-import { useConfirmation } from '../components/ConfirmationProvider';
+import { useMessage } from '../components/ConfirmationProvider';
+import { ChevronUpDownIcon } from '../components/icons/ChevronUpDownIcon';
+import { DownloadIcon } from '../components/icons/DownloadIcon';
+
+type SortDirection = 'ascending' | 'descending';
+
+interface SortConfig {
+  key: keyof Employee;
+  direction: SortDirection;
+}
+
+const useSortableData = (items: Employee[], config: SortConfig | null = null) => {
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(config);
+
+  const sortedItems = useMemo(() => {
+    let sortableItems = [...items];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+        if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [items, sortConfig]);
+
+  const requestSort = (key: keyof Employee) => {
+    let direction: SortDirection = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  return { items: sortedItems, requestSort, sortConfig };
+};
+
+const SortableHeader: React.FC<{
+    sortKey: keyof Employee,
+    title: string,
+    requestSort: (key: any) => void,
+    sortConfig: SortConfig | null,
+    className?: string,
+}> = ({ sortKey, title, requestSort, sortConfig, className }) => {
+    const isSorted = sortConfig?.key === sortKey;
+    return (
+        <th scope="col" className={`px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer ${className}`} onClick={() => requestSort(sortKey)}>
+            <div className="flex items-center">
+                <span>{title}</span>
+                <ChevronUpDownIcon className={`h-4 w-4 ml-1.5 ${isSorted ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`} />
+            </div>
+        </th>
+    );
+};
 
 interface SettingsEmployeesProps {
     employees: Employee[];
@@ -32,7 +87,7 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
         department: '',
         profession: ''
     });
-    const { showConfirmation } = useConfirmation();
+    const { showConfirmation, showError, showMessage } = useMessage();
 
     const isReadOnly = currentUser.role !== 'Admin';
 
@@ -71,6 +126,8 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
         );
     }), [employees, filters]);
     
+    const { items: sortedEmployees, requestSort, sortConfig } = useSortableData(filteredEmployees, { key: 'name', direction: 'ascending' });
+    
     const handleExport = () => {
         exportToExcel(employees.map(({id, ...rest}) => rest), "Employees");
     };
@@ -83,7 +140,7 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
             const data = await importFromExcel(file) as any[];
             const requiredHeaders = ['empId', 'name', 'idIqama', 'profession', 'department', 'phone', 'nationality', 'type', 'subcontractor'];
             if(!data[0] || !requiredHeaders.every(h => h in data[0])) {
-                alert(`Invalid file format. Required headers are: ${requiredHeaders.join(', ')}. Optional headers are: email, joiningDate.`);
+                showError('Invalid File Format',`Invalid file format. Required headers are: ${requiredHeaders.join(', ')}. Optional headers are: email, joiningDate.`);
                 return;
             }
             
@@ -110,13 +167,13 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
 
             if(newUniqueEmployees.length > 0) {
                  onSetEmployees([...employees, ...newUniqueEmployees]);
-                alert(`${newUniqueEmployees.length} new employees imported successfully!`);
+                showMessage('Import Successful', `${newUniqueEmployees.length} new employees imported successfully!`);
             } else {
-                alert('No new employees found to import. All employee IDs in the file already exist.');
+                showMessage('Import Information', 'No new employees found to import. All employee IDs in the file already exist.');
             }
         } catch (error) {
             console.error("Error importing employees:", error);
-            alert('Failed to import employees. Please check the file format.');
+            showError('Import Failed', 'Failed to import employees. Please check the file format and content.');
         }
         event.target.value = '';
     };
@@ -128,9 +185,13 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
                 title="Settings: Employees"
                 subtitle="Manage your master list of all employees."
             >
-                 <div className="flex space-x-3">
+                 <div className="flex flex-wrap gap-3">
                     {!isReadOnly && (
                         <>
+                             <button onClick={downloadEmployeeTemplate} className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                <DownloadIcon className="h-5 w-5 mr-2" />
+                                Download Template
+                            </button>
                             <label className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                                 <ImportIcon className="h-5 w-5 mr-2" />
                                 Import
@@ -164,45 +225,40 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
 
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full table-fixed divide-y divide-slate-200 dark:divide-slate-700">
-                        <thead className="bg-slate-50 dark:bg-slate-700">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                         <thead className="bg-slate-50 dark:bg-slate-700">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[10%]">Emp ID</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[20%]">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[15%]">Profession</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[12%]">Joining Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[12%]">Modified Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[10%]">Created By</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase w-[10%]">Modified By</th>
-                                {!isReadOnly && <th className="relative px-6 py-3 w-[11%]"><span className="sr-only">Actions</span></th>}
+                                <SortableHeader sortKey="empId" title="Emp ID" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="name" title="Name" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="idIqama" title="ID/Iqama" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="profession" title="Profession" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="department" title="Department" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="subcontractor" title="Subcontractor" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="type" title="Type" requestSort={requestSort} sortConfig={sortConfig} />
+                                {!isReadOnly && <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>}
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                            {filteredEmployees.map((employee) => (
-                                <tr key={employee.id}>
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{employee.empId}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.name}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.profession}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.joiningDate || 'N/A'}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.modifiedDate}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.createdBy}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.modifiedBy}</td>
+                            {sortedEmployees.map(emp => (
+                                <tr key={emp.id}>
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{emp.empId}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{emp.name}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{emp.idIqama}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{emp.profession}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{emp.department}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{emp.subcontractor}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{emp.type}</td>
                                     {!isReadOnly && <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
-                                        <button onClick={() => openModal(employee)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
-                                        <button 
-                                            onClick={() => handleDelete(employee)}
-                                            className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5 pointer-events-none" /></button>
+                                        <button onClick={() => openModal(emp)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
+                                        <button onClick={() => handleDelete(emp)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5 pointer-events-none" /></button>
                                     </td>}
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                <div className="flex items-center justify-between p-4 text-sm text-slate-500 dark:text-slate-400">
-                     <span>Showing {filteredEmployees.length} of {employees.length} employees</span>
-                     <button onClick={downloadEmployeeTemplate} className="text-sm font-medium text-[#28a745] hover:text-green-700">
-                        Download Excel Template
-                    </button>
+                 <div className="flex items-center justify-between p-4 text-sm text-slate-500 dark:text-slate-400">
+                    <span>Showing {sortedEmployees.length} of {employees.length} employees</span>
                 </div>
             </div>
 

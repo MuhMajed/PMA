@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo } from 'react';
 import { ManpowerRecord, Project, User } from '../types';
 import ManpowerTable from '../components/ManpowerTable';
@@ -16,6 +14,8 @@ import { useQuery } from '@tanstack/react-query';
 import * as api from '../utils/api';
 import { ChevronLeftIcon } from '../components/icons/ChevronLeftIcon';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
+import { useStore } from '../store/appStore';
+import { useMessage } from '../components/ConfirmationProvider';
 
 const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
   let descendants: string[] = [];
@@ -25,16 +25,6 @@ const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
     descendants = [...descendants, ...getDescendantIds(child.id, projects)];
   });
   return descendants;
-};
-
-const getInitialDateRange = () => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 29); // Last 30 days
-    return {
-        start: startDate.toISOString().split('T')[0],
-        end: endDate.toISOString().split('T')[0],
-    };
 };
 
 interface ManpowerRecordsProps {
@@ -50,6 +40,9 @@ const ITEMS_PER_PAGE = 15;
 const ManpowerRecords: React.FC<ManpowerRecordsProps> = ({ onAddRecord, onUpdateRecord, onDeleteRecord, onBulkAddRecords, currentUser }) => {
   const { records: allRecords, isLoading: isLoadingRecords } = useManpowerRecordsForCurrentUser();
   const { projects: allProjects, isLoading: isLoadingProjects } = useProjectsForCurrentUser();
+  const { sharedFilters, setSharedFilters } = useStore();
+  const { selectedProjects, dateRange } = sharedFilters;
+  const { showError } = useMessage();
   
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: api.fetchEmployees });
   const { data: subcontractors = [] } = useQuery({ queryKey: ['subcontractors'], queryFn: api.fetchSubcontractors });
@@ -57,18 +50,12 @@ const ManpowerRecords: React.FC<ManpowerRecordsProps> = ({ onAddRecord, onUpdate
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [recordToEdit, setRecordToEdit] = useState<ManpowerRecord | null>(null);
-  
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const [dateRange, setDateRange] = useState(getInitialDateRange);
   const [currentPage, setCurrentPage] = useState(1);
   
   const canAddAndBulkUpload = currentUser.role === 'Admin' || currentUser.role === 'Data Entry';
-  
-  React.useEffect(() => {
-    if(allProjects.length > 0 && selectedProjects.length === 0) {
-      setSelectedProjects(allProjects.filter(p => p.parentId === null).map(p => p.id));
-    }
-  }, [allProjects, selectedProjects.length]);
+
+  const setSelectedProjects = (newSelected: string[]) => setSharedFilters({ selectedProjects: newSelected });
+  const setDateRange = (newDateRange: { start: string, end: string }) => setSharedFilters({ dateRange: newDateRange });
 
   const filteredRecords = useMemo(() => {
     if (!dateRange.start || !dateRange.end || !allRecords) return [];
@@ -118,7 +105,7 @@ const ManpowerRecords: React.FC<ManpowerRecordsProps> = ({ onAddRecord, onUpdate
 
   const handleBulkUpload = (records: Omit<ManpowerRecord, 'id' | 'project' | 'date'>[]) => {
       if (dateRange.start !== dateRange.end) {
-          alert('Bulk import is only available when the date range is set to a single day. Please set the start and end date to be the same.');
+          showError('Invalid Date Range', 'Bulk import is only available when the date range is set to a single day. Please set the start and end date to be the same.');
           return;
       }
 
@@ -129,7 +116,7 @@ const ManpowerRecords: React.FC<ManpowerRecordsProps> = ({ onAddRecord, onUpdate
       });
 
       if (topLevelSelected.length !== 1) {
-          alert("Please select a single top-level project in the filter to bulk upload records for it.");
+          showError("Invalid Project Selection", "Please select a single top-level project in the filter to bulk upload records for it.");
           return;
       }
       const projectId = topLevelSelected[0];

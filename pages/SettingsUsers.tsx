@@ -9,8 +9,9 @@ import { TrashIcon } from '../components/icons/TrashIcon';
 import { KeyIcon } from '../components/icons/KeyIcon';
 import AddUserModal from '../components/AddUserModal';
 import ResetPasswordModal from '../components/ResetPasswordModal';
-import { useConfirmation } from '../components/ConfirmationProvider';
+import { useMessage } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
+import { ChevronUpDownIcon } from '../components/icons/ChevronUpDownIcon';
 
 interface SettingsUsersProps {
     users: User[];
@@ -29,37 +30,64 @@ const roleColors: Record<UserRole, string> = {
     'Data Entry': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
 };
 
+type SortDirection = 'ascending' | 'descending';
+interface SortConfig {
+  key: keyof User;
+  direction: SortDirection;
+}
+
+const useSortableData = (items: User[], config: SortConfig | null = null) => {
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(config);
+  const sortedItems = useMemo(() => {
+    let sortableItems = [...items];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [items, sortConfig]);
+  const requestSort = (key: keyof User) => {
+    let direction: SortDirection = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
+    setSortConfig({ key, direction });
+  };
+  return { items: sortedItems, requestSort, sortConfig };
+};
+
+const SortableHeader: React.FC<{ sortKey: keyof User, title: string, requestSort: (key: any) => void, sortConfig: SortConfig | null }> = ({ sortKey, title, requestSort, sortConfig }) => {
+    const isSorted = sortConfig?.key === sortKey;
+    return (
+        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(sortKey)}>
+            <div className="flex items-center">
+                <span>{title}</span>
+                <ChevronUpDownIcon className={`h-4 w-4 ml-1.5 ${isSorted ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`} />
+            </div>
+        </th>
+    );
+};
+
+
 const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, projects, onAdd, onUpdate, onDelete, onAdminResetPassword, currentUser }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState<User | null>(null);
     const [userToReset, setUserToReset] = useState<User | null>(null);
     const [filter, setFilter] = useState('');
-    const { showConfirmation } = useConfirmation();
+    const { showConfirmation, showError } = useMessage();
     
-    const openModal = (user: User | null) => {
-        setUserToEdit(user);
-        setIsModalOpen(true);
-    };
-
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setUserToEdit(null);
-    };
-
-    const openResetModal = (user: User) => {
-        setUserToReset(user);
-        setIsResetModalOpen(true);
-    };
-
-    const closeResetModal = () => {
-        setIsResetModalOpen(false);
-        setUserToReset(null);
-    };
+    const openModal = (user: User | null) => { setUserToEdit(user); setIsModalOpen(true); };
+    const closeModal = () => { setIsModalOpen(false); setUserToEdit(null); };
+    const openResetModal = (user: User) => { setUserToReset(user); setIsResetModalOpen(true); };
+    const closeResetModal = () => { setIsResetModalOpen(false); setUserToReset(null); };
     
     const handleDelete = (user: User) => {
         if (user.id === currentUser.id) {
-            alert("You cannot delete your own account.");
+            showError("Action Denied", "You cannot delete your own account.");
             return;
         }
         showConfirmation(
@@ -76,6 +104,8 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, project
         user.empId.toLowerCase().includes(filter.toLowerCase()) ||
         user.email.toLowerCase().includes(filter.toLowerCase())
     ), [users, filter]);
+    
+    const { items: sortedUsers, requestSort, sortConfig } = useSortableData(filteredUsers, { key: 'name', direction: 'ascending'});
 
     const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
 
@@ -105,17 +135,17 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, project
                     <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                         <thead className="bg-slate-50 dark:bg-slate-700">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Emp ID</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Username</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Role</th>
+                                <SortableHeader sortKey="name" title="Name" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="empId" title="Emp ID" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="email" title="Email" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="username" title="Username" requestSort={requestSort} sortConfig={sortConfig} />
+                                <SortableHeader sortKey="role" title="Role" requestSort={requestSort} sortConfig={sortConfig} />
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Assigned Projects</th>
                                 <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                            {filteredUsers.map((user) => {
+                            {sortedUsers.map((user) => {
                                 const assignedProjectNames = (user.assignedProjects || [])
                                     .map(id => projectsById.get(id)?.name)
                                     .filter(Boolean)

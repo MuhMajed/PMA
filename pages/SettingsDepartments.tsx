@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Employee, User } from '../types';
 import PageHeader from '../components/ui/PageHeader';
 import Modal from '../components/ui/Modal';
@@ -8,7 +8,7 @@ import { TrashIcon } from '../components/icons/TrashIcon';
 import { ImportIcon } from '../components/icons/ImportIcon';
 import { ExportIcon } from '../components/icons/ExportIcon';
 import { exportToExcel, importFromExcel, downloadDepartmentsTemplate } from '../utils/excel';
-import { useConfirmation } from '../components/ConfirmationProvider';
+import { useMessage } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
 import { DownloadIcon } from '../components/icons/DownloadIcon';
 
@@ -26,7 +26,7 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDepartment, setCurrentDepartment] = useState<string | null>(null);
     const [departmentName, setDepartmentName] = useState('');
-    const { showConfirmation } = useConfirmation();
+    const { showConfirmation, showError, showMessage } = useMessage();
     
     const isReadOnly = currentUser.role !== 'Admin';
 
@@ -46,15 +46,20 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (isReadOnly) return;
-        if (departmentName.trim() === '' || departments.includes(departmentName.trim())) {
-            alert("Department name cannot be empty or a duplicate.");
+        const trimmedName = departmentName.trim();
+        if (trimmedName === '') {
+            showError("Invalid Name", "Department name cannot be empty.");
+            return;
+        }
+        if (departments.some(d => d.toLowerCase() === trimmedName.toLowerCase() && d !== currentDepartment)) {
+            showError("Duplicate Name", "This department name already exists.");
             return;
         }
 
         if (currentDepartment) {
-            onEdit(currentDepartment, departmentName.trim());
+            onEdit(currentDepartment, trimmedName);
         } else {
-            onAdd(departmentName.trim());
+            onAdd(trimmedName);
         }
         closeModal();
     };
@@ -71,6 +76,8 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
     const isDepartmentInUse = (name: string) => {
         return employees.some(emp => emp.department === name);
     };
+    
+    const sortedDepartments = useMemo(() => [...departments].sort((a, b) => a.localeCompare(b)), [departments]);
 
     const handleExport = () => {
         const dataToExport = departments.map(d => ({ departmentName: d }));
@@ -86,15 +93,15 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
             const newDepartments = data.map((row: any) => row.departmentName).filter(Boolean);
             const updatedDepartments = [...departments];
             newDepartments.forEach(newDept => {
-                if (!updatedDepartments.includes(newDept)) {
+                if (!updatedDepartments.some(d => d.toLowerCase() === newDept.toLowerCase())) {
                     updatedDepartments.push(newDept);
                 }
             });
             onSetDepartments(updatedDepartments.sort());
-             alert('Departments imported successfully!');
+             showMessage('Import Successful', 'Departments imported successfully!');
         } catch (error) {
             console.error("Error importing departments:", error);
-            alert('Failed to import departments. Check file format (should have a "departmentName" column).');
+            showError('Import Failed', 'Failed to import departments. Check file format (should have a "departmentName" column).');
         }
         event.target.value = '';
     };
@@ -128,7 +135,7 @@ const SettingsDepartments: React.FC<SettingsDepartmentsProps> = ({ departments, 
 
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg">
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {departments.map((department) => (
+                    {sortedDepartments.map((department) => (
                         <li key={department} className="p-4 flex items-center justify-between">
                             <span className="text-slate-800 dark:text-slate-200">{department}</span>
                             {!isReadOnly && <div className="flex items-center space-x-4">

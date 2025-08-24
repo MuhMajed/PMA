@@ -6,6 +6,7 @@ import Modal from './ui/Modal';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
 import { ProjectMultiSelectFilter } from './ProjectMultiSelectFilter';
+import { useMessage } from './ConfirmationProvider';
 
 interface AddUserModalProps {
   onClose: () => void;
@@ -27,6 +28,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
   const [email, setEmail] = useState('');
   const [employeeStatus, setEmployeeStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const [assignedProjects, setAssignedProjects] = useState<string[]>([]);
+  const { showError } = useMessage();
 
   const isEditMode = !!userToEdit;
 
@@ -40,7 +42,6 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
       setPassword('');
       setConfirmPassword('');
       setAssignedProjects(userToEdit.assignedProjects || []);
-      // Since it's edit mode, we assume the employee is valid
       setEmployeeStatus('valid');
     }
   }, [userToEdit, isEditMode]);
@@ -60,7 +61,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
               setEmployeeStatus('invalid');
               setName('');
               setEmail('');
-              alert('An application user account already exists for this Employee ID.');
+              showError('User Exists', 'An application user account already exists for this Employee ID.');
           } else {
               setEmployeeStatus('valid');
               setName(employee.name);
@@ -78,7 +79,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
     e.preventDefault();
 
     if (employeeStatus !== 'valid') {
-        alert('Please enter a valid Employee ID that is registered in the employee master list.');
+        showError('Invalid Employee', 'Please enter a valid Employee ID that is registered in the employee master list.');
         return;
     }
     
@@ -86,22 +87,22 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
         u => u.username.toLowerCase() === username.toLowerCase() && u.id !== userToEdit?.id
     );
     if (usernameExists) {
-        alert('This username is already taken. Please choose another.');
+        showError('Username Taken', 'This username is already taken. Please choose another.');
         return;
     }
 
     if (!isEditMode) { // Adding a new user
         if (!password) {
-            alert('Password is required for new users.');
+            showError('Password Required', 'Password is required for new users.');
             return;
         }
         if (password !== confirmPassword) {
-            alert('Passwords do not match.');
+            showError('Password Mismatch', 'Passwords do not match.');
             return;
         }
     } else { // Editing an existing user
         if (password && password !== confirmPassword) {
-            alert('Passwords do not match.');
+            showError('Password Mismatch', 'Passwords do not match.');
             return;
         }
     }

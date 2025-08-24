@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ManpowerRecord, User } from '../types';
 import PageHeader from '../components/ui/PageHeader';
 import Modal from '../components/ui/Modal';
@@ -8,7 +8,7 @@ import { TrashIcon } from '../components/icons/TrashIcon';
 import { ImportIcon } from '../components/icons/ImportIcon';
 import { ExportIcon } from '../components/icons/ExportIcon';
 import { exportToExcel, importFromExcel, downloadProfessionsTemplate } from '../utils/excel';
-import { useConfirmation } from '../components/ConfirmationProvider';
+import { useMessage } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
 import { DownloadIcon } from '../components/icons/DownloadIcon';
 
@@ -26,7 +26,7 @@ const SettingsProfessions: React.FC<SettingsProfessionsProps> = ({ professions, 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentProfession, setCurrentProfession] = useState<string | null>(null);
     const [professionName, setProfessionName] = useState('');
-    const { showConfirmation } = useConfirmation();
+    const { showConfirmation, showError, showMessage } = useMessage();
     
     const isReadOnly = currentUser.role !== 'Admin';
 
@@ -46,15 +46,20 @@ const SettingsProfessions: React.FC<SettingsProfessionsProps> = ({ professions, 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (isReadOnly) return;
-        if (professionName.trim() === '' || professions.includes(professionName.trim())) {
-            alert("Profession name cannot be empty or a duplicate.");
+        const trimmedName = professionName.trim();
+        if (trimmedName === '') {
+            showError("Invalid Name", "Profession name cannot be empty.");
+            return;
+        }
+        if (professions.some(p => p.toLowerCase() === trimmedName.toLowerCase() && p !== currentProfession)) {
+            showError("Duplicate Name", "This profession name already exists.");
             return;
         }
 
         if (currentProfession) {
-            onEdit(currentProfession, professionName.trim());
+            onEdit(currentProfession, trimmedName);
         } else {
-            onAdd(professionName.trim());
+            onAdd(trimmedName);
         }
         closeModal();
     };
@@ -72,6 +77,8 @@ const SettingsProfessions: React.FC<SettingsProfessionsProps> = ({ professions, 
         return records.some(record => record.profession === name);
     };
 
+    const sortedProfessions = useMemo(() => [...professions].sort((a,b) => a.localeCompare(b)), [professions]);
+
     const handleExport = () => {
         const dataToExport = professions.map(p => ({ professionName: p }));
         exportToExcel(dataToExport, "Professions");
@@ -86,15 +93,15 @@ const SettingsProfessions: React.FC<SettingsProfessionsProps> = ({ professions, 
             const newProfessions = data.map((row: any) => row.professionName).filter(Boolean);
             const updatedProfessions = [...professions];
             newProfessions.forEach(newProf => {
-                if (!updatedProfessions.includes(newProf)) {
+                 if (!updatedProfessions.some(p => p.toLowerCase() === newProf.toLowerCase())) {
                     updatedProfessions.push(newProf);
                 }
             });
             onSetProfessions(updatedProfessions.sort());
-             alert('Professions imported successfully!');
+             showMessage('Import Successful', 'Professions imported successfully!');
         } catch (error) {
             console.error("Error importing professions:", error);
-            alert('Failed to import professions. Check file format (should have a "professionName" column).');
+            showError('Import Failed', 'Failed to import professions. Check file format (should have a "professionName" column).');
         }
         event.target.value = '';
     };
@@ -128,7 +135,7 @@ const SettingsProfessions: React.FC<SettingsProfessionsProps> = ({ professions, 
 
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg">
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {professions.map((profession) => (
+                    {sortedProfessions.map((profession) => (
                         <li key={profession} className="p-4 flex items-center justify-between">
                             <span className="text-slate-800 dark:text-slate-200">{profession}</span>
                             {!isReadOnly && <div className="flex items-center space-x-4">

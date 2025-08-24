@@ -16,7 +16,7 @@ import { ViewfinderCircleIcon } from '../components/icons/ViewfinderCircleIcon';
 import { QrCodeIcon } from '../components/icons/QrCodeIcon';
 import { ClipboardDocumentListIcon } from '../components/icons/ClipboardDocumentListIcon';
 import { Bars3Icon } from '../components/icons/Bars3Icon';
-import { useConfirmation } from '../components/ConfirmationProvider';
+import { useMessage } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
 import { HIERARCHY, DEFAULT_HIERARCHY_LABELS } from '../constants';
 import { TagIcon } from '../components/icons/TagIcon';
@@ -97,7 +97,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
     const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
     const [formData, setFormData] = useState<ProjectFormData>(initialFormData);
     const [currentParentId, setCurrentParentId] = useState<string | null>(null);
-    const { showConfirmation } = useConfirmation();
+    const { showConfirmation, showError, showMessage } = useMessage();
     
     const isReadOnly = currentUser.role !== 'Admin';
 
@@ -198,21 +198,21 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
         if (isReadOnly) return;
 
         if (formData.name.trim() === '' || !formData.type) {
-            alert('Name and type cannot be empty.');
+            showError('Missing Information', 'Name and type cannot be empty.');
             return;
         }
 
         if (formData.type === 'Activity') {
             if (formData.universalNorm === '' || isNaN(Number(formData.universalNorm)) || Number(formData.universalNorm) < 0) {
-                alert('Universal Norm is mandatory for activities and must be a number equal to or greater than 0.');
+                showError('Invalid Input', 'Universal Norm is mandatory for activities and must be a number equal to or greater than 0.');
                 return;
             }
             if (formData.companyNorm !== '' && (isNaN(Number(formData.companyNorm)) || Number(formData.companyNorm) < 0)) {
-                alert('Company Norm must be a number equal to or greater than 0 if provided.');
+                showError('Invalid Input', 'Company Norm must be a number equal to or greater than 0 if provided.');
                 return;
             }
             if (formData.rate !== '' && (isNaN(Number(formData.rate)) || Number(formData.rate) < 0)) {
-                alert('Rate must be a number equal to or greater than 0 if provided.');
+                showError('Invalid Input', 'Rate must be a number equal to or greater than 0 if provided.');
                 return;
             }
         }
@@ -271,19 +271,19 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
         try {
             const data = await importFromExcel(file) as Project[];
             if (!data[0] || !('id' in data[0] && 'name' in data[0] && 'parentId' in data[0] && 'type' in data[0])) {
-                 alert('Invalid Excel file format. Required columns: id, name, parentId, type');
+                 showError('Invalid File', 'Invalid Excel file format. Required columns: id, name, parentId, type');
                  return;
             }
             if (data.some(row => !HIERARCHY.includes(row.type))) {
-                alert(`Invalid 'type' value in Excel file. Must be one of: ${HIERARCHY.join(', ')}`);
+                showError('Invalid File', `Invalid 'type' value in Excel file. Must be one of: ${HIERARCHY.join(', ')}`);
                 return;
             }
             onSetProjects(data);
             setCurrentParentId(null);
-            alert('Projects hierarchy imported successfully!');
+            showMessage('Import Successful', 'Projects hierarchy imported successfully!');
         } catch (error) {
             console.error("Error importing projects:", error);
-            alert('Failed to import projects.');
+            showError('Import Failed', 'Failed to import projects.');
         }
         event.target.value = '';
     };

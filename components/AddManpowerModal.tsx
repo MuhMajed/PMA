@@ -3,6 +3,7 @@ import { ManpowerRecord, ManpowerStatus, Project, Subcontractor, Shift, Employee
 import { ProjectTreeSelect } from './ProjectTreeSelect';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
+import { useMessage } from './ConfirmationProvider';
 
 interface AddManpowerModalProps {
   onClose: () => void;
@@ -37,6 +38,7 @@ const AddManpowerModal: React.FC<AddManpowerModalProps> = ({
     subcontractors = [],
     defaultDate,
 }) => {
+  const { showError } = useMessage();
   const [activeTab, setActiveTab] = useState<'direct' | 'staff'>('direct');
   
   // Common state
@@ -179,7 +181,7 @@ const AddManpowerModal: React.FC<AddManpowerModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (employeeStatus !== 'valid' || !foundEmployee) {
-        alert('Please select a valid employee.');
+        showError('Invalid Employee', 'Please select a valid employee.');
         return;
     }
 
@@ -187,17 +189,17 @@ const AddManpowerModal: React.FC<AddManpowerModalProps> = ({
     if (activeTab === 'direct') {
       projectIdToSave = isSupporting ? directRootProjectId : directActivityId;
       if (!projectIdToSave) {
-          alert(isSupporting ? 'Please select a project.' : 'Please select an activity.');
+          showError('Missing Information', isSupporting ? 'Please select a project.' : 'Please select an activity.');
           return;
       }
       if (isSupporting && !subcontractor) {
-          alert('Please select the supporting subcontractor.');
+          showError('Missing Information', 'Please select the supporting subcontractor.');
           return;
       }
     } else { // Staff tab
       projectIdToSave = staffLevel2Id;
        if (!staffProjectId || !staffLevel1Id || !staffLevel2Id) {
-          alert('Please select a Project, Level 1, and Level 2 location.');
+          showError('Missing Information', 'Please select a Project, Level 1, and Level 2 location.');
           return;
       }
     }
@@ -205,11 +207,11 @@ const AddManpowerModal: React.FC<AddManpowerModalProps> = ({
     const hours = status === ManpowerStatus.ACTIVE ? Number(hoursWorked) : 0;
     if (status === ManpowerStatus.ACTIVE) {
         if (hoursWorked === '' || isNaN(Number(hoursWorked))) {
-            alert('Hours Worked is mandatory and must be a number for Active status.');
+            showError('Invalid Input', 'Hours Worked is mandatory and must be a number for Active status.');
             return;
         }
         if (hours <= 0 || hours > 24) {
-          alert('Working hours must be greater than 0 and no more than 24.');
+          showError('Invalid Input', 'Working hours must be greater than 0 and no more than 24.');
           return;
         }
     }
@@ -220,7 +222,7 @@ const AddManpowerModal: React.FC<AddManpowerModalProps> = ({
     const existingHours = recordsForEmployeeOnDate.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
 
     if (existingHours + hours > 24) {
-        alert(`This record exceeds the 24-hour limit for this employee on this date. They have already worked ${existingHours} hours.`);
+        showError('Time Limit Exceeded', `This record exceeds the 24-hour limit for this employee on this date. They have already worked ${existingHours} hours.`);
         return;
     }
 
@@ -365,23 +367,25 @@ const AddManpowerModal: React.FC<AddManpowerModalProps> = ({
             )}
             
             {/* Common Status/Hours Fields */}
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-                <label htmlFor="status" className={labelStyles}>Status<RequiredIndicator /></label>
-                <select id="status" value={status} onChange={(e) => setStatus(e.target.value as ManpowerStatus)} required className={inputStyles}>
-                  {Object.values(ManpowerStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <div>
+                    <label htmlFor="status" className={labelStyles}>Status<RequiredIndicator /></label>
+                    <select id="status" value={status} onChange={(e) => setStatus(e.target.value as ManpowerStatus)} required className={inputStyles}>
+                      {Object.values(ManpowerStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                 <div>
+                    <label htmlFor="shift" className={labelStyles}>Shift<RequiredIndicator /></label>
+                    <select id="shift" value={shift} onChange={(e) => setShift(e.target.value as Shift)} required className={inputStyles}>
+                    {Object.values(Shift).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
             </div>
             {status === ManpowerStatus.ACTIVE && (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1">
                     <div>
                         <label htmlFor="hoursWorked" className={labelStyles}>Hours Worked<RequiredIndicator /></label>
                         <input type="number" id="hoursWorked" value={hoursWorked} onChange={(e) => setHoursWorked(e.target.value === '' ? '' : parseFloat(e.target.value))} className={inputStyles} step="0.5" min="0.5" max="24" required />
-                    </div>
-                    <div>
-                        <label htmlFor="shift" className={labelStyles}>Shift<RequiredIndicator /></label>
-                        <select id="shift" value={shift} onChange={(e) => setShift(e.target.value as Shift)} required className={inputStyles}>
-                        {Object.values(Shift).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
                     </div>
                 </div>
             )}

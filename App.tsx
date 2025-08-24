@@ -1,5 +1,3 @@
-
-
 import React, { useEffect } from 'react';
 import { useStore } from './store/appStore';
 import { useProjectsForCurrentUser, useManpowerRecordsForCurrentUser, useProgressRecordsForCurrentUser } from './hooks/useData';
@@ -14,7 +12,7 @@ import SettingsSubcontractors from './pages/SettingsSubcontractors';
 import SettingsDepartments from './pages/SettingsDepartments';
 import SettingsUsers from './pages/SettingsUsers';
 import LoginPage from './pages/LoginPage';
-import { ConfirmationProvider } from './components/ConfirmationProvider';
+import { MessageProvider } from './components/ConfirmationProvider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from './utils/api';
 
@@ -22,7 +20,7 @@ import * as api from './utils/api';
 
 const App: React.FC = () => {
   const queryClient = useQueryClient();
-  const { currentUser, theme, setTheme, currentPage, setCurrentPage, logout } = useStore();
+  const { currentUser, theme, setTheme, currentPage, setCurrentPage, logout, setSharedFilters, isFilterInitialized, setIsFilterInitialized } = useStore();
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -50,6 +48,17 @@ const App: React.FC = () => {
   const { projects: allProjectsForUser } = useProjectsForCurrentUser();
   const { records: allManpowerRecordsForUser } = useManpowerRecordsForCurrentUser();
   const { progressRecords: allProgressRecordsForUser } = useProgressRecordsForCurrentUser();
+  
+  // Initialize shared project filter once projects are loaded
+  useEffect(() => {
+      if (allProjectsForUser.length > 0 && !isFilterInitialized) {
+          setSharedFilters({
+              selectedProjects: allProjectsForUser.filter(p => p.parentId === null).map(p => p.id)
+          });
+          setIsFilterInitialized(true);
+      }
+  }, [allProjectsForUser, isFilterInitialized, setSharedFilters, setIsFilterInitialized]);
+
 
   // Mutations
   const createMutation = <TData, TError, TVariables>(mutationFn: (vars: TVariables) => Promise<TData>, queryKey: string[]) => 
@@ -194,15 +203,19 @@ const App: React.FC = () => {
   };
 
   if (!currentUser) {
-    return <LoginPage />;
+    return (
+        <MessageProvider>
+            <LoginPage />
+        </MessageProvider>
+    );
   }
 
   return (
-    <ConfirmationProvider>
+    <MessageProvider>
       <Layout>
           {renderPage()}
       </Layout>
-    </ConfirmationProvider>
+    </MessageProvider>
   );
 };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Subcontractor } from '../types';
 import { NATIONALITIES } from '../constants';
 import Modal from './ui/Modal';
+import { useMessage } from './ConfirmationProvider';
 
 interface AddSubcontractorModalProps {
     onClose: () => void;
@@ -22,6 +23,7 @@ const AddSubcontractorModal: React.FC<AddSubcontractorModalProps> = ({
     const [nationality, setNationality] = useState(NATIONALITIES[0] || '');
     const [scope, setScope] = useState('');
     const [mainContractorId, setMainContractorId] = useState<string | null>(null);
+    const { showError } = useMessage();
 
     const isEditMode = !!subcontractorToEdit;
 
@@ -40,7 +42,7 @@ const AddSubcontractorModal: React.FC<AddSubcontractorModalProps> = ({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name || !scope || !nationality) {
-            alert('Please fill all mandatory fields');
+            showError('Missing Information', 'Please fill all mandatory fields marked with an asterisk (*).');
             return;
         }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Employee, EmployeeType, Subcontractor } from '../types';
 import { NATIONALITIES } from '../constants';
 import Modal from './ui/Modal';
+import { useMessage } from './ConfirmationProvider';
 
 interface AddEmployeeModalProps {
   onClose: () => void;
@@ -28,6 +29,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
   const [subcontractor, setSubcontractor] = useState('');
   const [joiningDate, setJoiningDate] = useState('');
   const [isSbgEmployee, setIsSbgEmployee] = useState(false);
+  const { showError } = useMessage();
 
   const isEditMode = !!employeeToEdit;
 
@@ -71,7 +73,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!empId || !name || !profession || !nationality || !idIqama || !department || !phone || !type || !subcontractor) {
-      alert('Please fill all mandatory fields');
+      showError('Missing Information', 'Please fill all mandatory fields marked with an asterisk (*).');
       return;
     }
 

@@ -1,14 +1,16 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Project, ProgressRecord as ProgressRecordType, User } from '../types';
+
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Project, ProgressRecord as ProgressRecordType, User, Shift } from '../types';
 import PageHeader from '../components/ui/PageHeader';
 import { PlusIcon } from '../components/icons/PlusIcon';
-import Modal from '../components/ui/Modal';
-import { ProjectTreeSelect } from '../components/ProjectTreeSelect';
 import { PencilIcon } from '../components/icons/PencilIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
-import { useConfirmation } from '../components/ConfirmationProvider';
+import { useMessage } from '../components/ConfirmationProvider';
 import { ExportIcon } from '../components/icons/ExportIcon';
 import { exportToExcel } from '../utils/excel';
+import { ChevronUpDownIcon } from '../components/icons/ChevronUpDownIcon';
+import SearchableSelect from '../components/ui/SearchableSelect';
+import { HIERARCHY, DEFAULT_HIERARCHY_LABELS } from '../constants';
 
 interface ProgressRecordPageProps {
     projects: Project[];
@@ -19,50 +21,84 @@ interface ProgressRecordPageProps {
     currentUser: User;
 }
 
+type SortDirection = 'ascending' | 'descending';
+type SortableProgressRecord = ProgressRecordType & { cumulativeQty: number };
+
+interface SortConfig {
+  key: keyof SortableProgressRecord;
+  direction: SortDirection;
+}
+
+const useSortableData = (items: SortableProgressRecord[], config: SortConfig | null = null) => {
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(config);
+
+  const sortedItems = useMemo(() => {
+    let sortableItems = [...items];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [items, sortConfig]);
+
+  const requestSort = (key: keyof SortableProgressRecord) => {
+    let direction: SortDirection = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  return { items: sortedItems, requestSort, sortConfig };
+};
+
+const SortableHeader: React.FC<{
+    sortKey: any,
+    title: string,
+    requestSort: (key: any) => void,
+    sortConfig: SortConfig | null
+}> = ({ sortKey, title, requestSort, sortConfig }) => {
+    const isSorted = sortConfig?.key === sortKey;
+    return (
+        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(sortKey)}>
+            <div className="flex items-center">
+                <span>{title}</span>
+                <ChevronUpDownIcon className={`h-4 w-4 ml-1.5 ${isSorted ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`} />
+            </div>
+        </th>
+    );
+};
+
+
 const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progressRecords, onAddProgress, onUpdateProgress, onDeleteProgress, currentUser }) => {
-    const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+    const [selectedHierarchyIds, setSelectedHierarchyIds] = useState<string[]>([]);
     const [recordToEdit, setRecordToEdit] = useState<ProgressRecordType | null>(null);
 
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [quantity, setQuantity] = useState<number | ''>(''); // Represents cumulative for add, daily for edit
+    const [quantity, setQuantity] = useState<number | ''>(''); 
     const [manualPercentage, setManualPercentage] = useState<number | ''>('');
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const { showConfirmation } = useConfirmation();
+    const [shift, setShift] = useState<Shift>(Shift.DAY);
+    const { showError, showConfirmation } = useMessage();
+    
+    const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
 
     const canModify = currentUser.role === 'Admin' || currentUser.role === 'Data Entry';
     const canDelete = currentUser.role === 'Admin';
+    
+    const selectedActivityId = useMemo(() => {
+        const lastId = selectedHierarchyIds[selectedHierarchyIds.length - 1];
+        if (!lastId) return null;
+        const node = projectsById.get(lastId);
+        return node?.type === 'Activity' ? lastId : null;
+    }, [selectedHierarchyIds, projectsById]);
 
     const selectedActivity = useMemo(() => projects.find(p => p.id === selectedActivityId), [projects, selectedActivityId]);
     
-    // Effect to reset form when activity changes or when finishing an edit
-    useEffect(() => {
-        if (!recordToEdit) {
-            setSelectedDate(new Date().toISOString().split('T')[0]);
-            setQuantity('');
-            setManualPercentage('');
-        }
-    }, [selectedActivityId, recordToEdit]);
-    
-    // Effect to populate form for editing
-    useEffect(() => {
-        if (recordToEdit) {
-            if (selectedActivityId !== recordToEdit.activityId) {
-                setSelectedActivityId(recordToEdit.activityId);
-            }
-            setSelectedDate(recordToEdit.date);
-            setQuantity(recordToEdit.qty);
-            setManualPercentage(recordToEdit.manualPercentage ?? '');
-        }
-    }, [recordToEdit, selectedActivityId]);
-
-
-    const handleActivitySelect = (id: string | null) => {
-        setSelectedActivityId(id);
-        if (recordToEdit) {
-            setRecordToEdit(null); // Cancel edit if activity changes
-        }
-    };
-
     const recordsForActivity = useMemo(() => 
         progressRecords
             .filter(r => r.activityId === selectedActivityId)
@@ -77,90 +113,136 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
             return { ...record, cumulativeQty: cumulativeTotal };
         });
     }, [recordsForActivity]);
+    
+    const { items: sortedCumulativeData, requestSort, sortConfig } = useSortableData(cumulativeData, { key: 'date', direction: 'ascending'});
+    
+    const getActivityPath = useCallback((activityId: string): Project[] => {
+        const path: Project[] = [];
+        let current = projectsById.get(activityId);
+        while (current) {
+            path.unshift(current);
+            current = current.parentId ? projectsById.get(current.parentId) : undefined;
+        }
+        return path;
+    }, [projectsById]);
 
-    const getCumulativeBeforeDate = (date: string) => {
+    const resetForm = useCallback(() => {
+        setRecordToEdit(null);
+        setSelectedDate(new Date().toISOString().split('T')[0]);
+        setQuantity('');
+        setManualPercentage('');
+        setShift(Shift.DAY);
+    }, []);
+
+    useEffect(() => {
+        if (recordToEdit) {
+            const path = getActivityPath(recordToEdit.activityId);
+            setSelectedHierarchyIds(path.map(p => p.id));
+            setSelectedDate(recordToEdit.date);
+            const cumulativeRecord = cumulativeData.find(r => r.id === recordToEdit.id);
+            setQuantity(cumulativeRecord?.cumulativeQty ?? '');
+            setManualPercentage(recordToEdit.manualPercentage ?? '');
+            setShift(recordToEdit.shift || Shift.DAY);
+        }
+    }, [recordToEdit, cumulativeData, getActivityPath]);
+    
+
+    const handleHierarchyChange = (levelIndex: number, value: string | null) => {
+        const newHierarchy = [...selectedHierarchyIds.slice(0, levelIndex)];
+        if (value) {
+            newHierarchy.push(value);
+        }
+        setSelectedHierarchyIds(newHierarchy);
+        resetForm();
+    };
+    
+    const getCumulativeBeforeDate = (date: string, excludeRecordId?: string) => {
          return recordsForActivity
-            .filter(r => r.date < date)
+            .filter(r => r.date < date && r.id !== excludeRecordId)
             .reduce((sum, record) => sum + record.qty, 0);
     }
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setErrorMessage(null);
 
         if (!selectedActivityId || !selectedActivity) {
-            setErrorMessage("Please select an activity.");
+            showError("Selection Missing", "Please select a valid activity from all levels.");
             return;
         }
 
         if (quantity === '' || isNaN(Number(quantity))) {
-            setErrorMessage("Please enter a valid quantity.");
+            showError("Invalid Input", "Please enter a valid quantity.");
             return;
         }
         
-        const finalCumulativeQty = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeQty : 0;
+        const cumulativeQtyInput = Number(quantity);
 
-        // --- EDIT LOGIC ---
         if (recordToEdit) {
-            const dailyQty = Number(quantity);
-            const newTotalCumulative = finalCumulativeQty - recordToEdit.qty + dailyQty;
-            
-            if (selectedActivity.totalQty && newTotalCumulative > selectedActivity.totalQty) {
-                setErrorMessage(`This change would result in a total cumulative quantity of ${newTotalCumulative.toFixed(2)}, which exceeds the total planned quantity (${selectedActivity.totalQty}).\nPlease adjust the quantity or edit the planned quantity in the Project Settings if needed.`);
+            const prevCumulative = getCumulativeBeforeDate(recordToEdit.date, recordToEdit.id);
+            const newDailyQty = cumulativeQtyInput - prevCumulative;
+
+            if (newDailyQty < 0) {
+                showError("Invalid Quantity", `Cumulative quantity cannot be less than the previous day's total of ${prevCumulative.toFixed(2)}.`);
+                return;
+            }
+
+            const totalWithoutOldRecord = (cumulativeData.length > 0 ? cumulativeData[cumulativeData.length-1].cumulativeQty : 0) - recordToEdit.qty;
+            const newTotalWithNewDaily = totalWithoutOldRecord + newDailyQty;
+
+            if (selectedActivity.totalQty && newTotalWithNewDaily > selectedActivity.totalQty) {
+                showError("Exceeds Planned Quantity", `This update would make the total ${newTotalWithNewDaily.toFixed(2)}, exceeding the planned ${selectedActivity.totalQty}.`);
                 return;
             }
 
             const updatedRecord: ProgressRecordType = {
                 ...recordToEdit,
-                date: selectedDate,
-                qty: Number(quantity),
+                qty: newDailyQty,
                 manualPercentage: manualPercentage !== '' ? Number(manualPercentage) : undefined,
+                shift,
             };
             onUpdateProgress(updatedRecord);
-            setRecordToEdit(null);
-            return;
-        }
-
-        // --- ADD LOGIC ---
-        const cumulativeQty = Number(quantity);
-
-        if (selectedActivity.totalQty && cumulativeQty > selectedActivity.totalQty) {
-            setErrorMessage(`Cumulative quantity (${cumulativeQty.toFixed(2)}) exceeds the total planned quantity for this activity (${selectedActivity.totalQty}).\nPlease adjust the quantity or edit the planned quantity in the Project Settings if needed.`);
-            return;
-        }
-
-        const existingRecordOnDate = recordsForActivity.find(r => r.date === selectedDate);
-        if (existingRecordOnDate) {
-            setErrorMessage(`A record for ${selectedDate} already exists. Please edit the existing record or choose a different date.`);
-            return;
-        }
-
-        const currentCumulativeQty = getCumulativeBeforeDate(selectedDate);
-        if (cumulativeQty < currentCumulativeQty) {
-            setErrorMessage(`Cumulative quantity (${cumulativeQty}) cannot be less than the previous recorded quantity of ${currentCumulativeQty}.`);
-            return;
-        }
-
-        const nextRecord = recordsForActivity.find(r => r.date > selectedDate);
-        if (nextRecord) {
-            const nextCumulativeEntry = cumulativeData.find(cd => cd.id === nextRecord.id);
-            if (nextCumulativeEntry && cumulativeQty > nextCumulativeEntry.cumulativeQty) {
-                setErrorMessage(`The cumulative quantity (${cumulativeQty}) cannot be greater than the quantity recorded on the next available date (${nextRecord.date}), which is ${nextCumulativeEntry.cumulativeQty}.`);
+        } else {
+            if (selectedActivity.totalQty && cumulativeQtyInput > selectedActivity.totalQty) {
+                showError("Exceeds Planned Quantity", `Cumulative quantity (${cumulativeQtyInput}) exceeds the total planned quantity (${selectedActivity.totalQty}).`);
                 return;
             }
-        }
 
-        const dailyQty = cumulativeQty - currentCumulativeQty;
-        const newRecord: Omit<ProgressRecordType, 'id'> = {
-            activityId: selectedActivityId,
-            date: selectedDate,
-            qty: dailyQty,
-            manualPercentage: (!selectedActivity?.totalQty && manualPercentage !== '') ? Number(manualPercentage) : undefined,
-        };
+            const existingRecordOnDate = recordsForActivity.find(r => r.date === selectedDate);
+            if (existingRecordOnDate) {
+                showError("Duplicate Record", `A record for ${selectedDate} already exists. Please edit the existing record.`);
+                return;
+            }
+
+            const currentCumulativeQty = getCumulativeBeforeDate(selectedDate);
+            if (cumulativeQtyInput < currentCumulativeQty) {
+                showError("Invalid Quantity", `Cumulative quantity (${cumulativeQtyInput}) cannot be less than the previously recorded cumulative of ${currentCumulativeQty.toFixed(2)}.`);
+                return;
+            }
+
+            const nextRecord = recordsForActivity.find(r => r.date > selectedDate);
+            if (nextRecord) {
+                const nextCumulativeEntry = cumulativeData.find(cd => cd.id === nextRecord.id);
+                if (nextCumulativeEntry && cumulativeQtyInput > nextCumulativeEntry.cumulativeQty) {
+                    showError("Invalid Quantity", `The cumulative quantity (${cumulativeQtyInput}) cannot be greater than the quantity recorded on the next available date (${nextRecord.date}), which is ${nextCumulativeEntry.cumulativeQty.toFixed(2)}.`);
+                    return;
+                }
+            }
+
+            const dailyQty = cumulativeQtyInput - currentCumulativeQty;
+            const newRecord: Omit<ProgressRecordType, 'id'> = {
+                activityId: selectedActivityId,
+                date: selectedDate,
+                qty: dailyQty,
+                manualPercentage: (!selectedActivity?.totalQty && manualPercentage !== '') ? Number(manualPercentage) : undefined,
+                shift,
+            };
+            onAddProgress(newRecord);
+        }
         
-        onAddProgress(newRecord);
-        setQuantity('');
-        setManualPercentage('');
+        resetForm(); 
+        const currentSelection = [...selectedHierarchyIds];
+        setSelectedHierarchyIds([]);
+        setTimeout(() => setSelectedHierarchyIds(currentSelection), 0);
     };
 
     const handleDelete = (record: ProgressRecordType) => {
@@ -174,16 +256,17 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
     const finalCumulativeQty = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeQty : 0;
     const finalPercentage = selectedActivity?.totalQty ? (finalCumulativeQty / selectedActivity.totalQty) * 100 : 0;
     
-    const currentCumulativeQtyForDisplay = getCumulativeBeforeDate(selectedDate);
+    const currentCumulativeQtyForDisplay = recordToEdit ? getCumulativeBeforeDate(recordToEdit.date, recordToEdit.id) : getCumulativeBeforeDate(selectedDate);
 
     const handleExport = () => {
         if (!selectedActivity) return;
-        const dataToExport = cumulativeData.map(rec => {
+        const dataToExport = sortedCumulativeData.map(rec => {
             const percentage = selectedActivity.totalQty 
                 ? (rec.cumulativeQty / selectedActivity.totalQty) * 100 
                 : rec.manualPercentage ?? null;
             return {
                 Date: rec.date,
+                Shift: rec.shift || 'Day',
                 'Daily Qty': rec.qty.toFixed(2),
                 'Cumulative Qty': rec.cumulativeQty.toFixed(2),
                 'Progress %': percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'
@@ -191,6 +274,59 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
         });
         exportToExcel(dataToExport, `Progress_Report_${selectedActivity.name}`);
     };
+    
+    const renderSlicers = () => {
+        const slicers = [];
+        
+        const rootProjectId = selectedHierarchyIds[0];
+        const rootProject = rootProjectId ? projectsById.get(rootProjectId) : null;
+        const labels = rootProject?.hierarchyLabels 
+            ? { ...DEFAULT_HIERARCHY_LABELS, ...rootProject.hierarchyLabels } 
+            : DEFAULT_HIERARCHY_LABELS;
+
+        // Slicer 0: Root Projects
+        const rootProjects = projects.filter(p => p.parentId === null);
+        slicers.push(
+            <div key="level-0">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{labels.Project}</label>
+                <SearchableSelect
+                    options={rootProjects.map(p => ({ value: p.id, label: p.name }))}
+                    value={selectedHierarchyIds[0] || null}
+                    onChange={(value) => handleHierarchyChange(0, value)}
+                    placeholder={`Select ${labels.Project}...`}
+                />
+            </div>
+        );
+    
+        let parentId = selectedHierarchyIds[0];
+        let level = 1;
+        while(parentId) {
+            const children = projects.filter(p => p.parentId === parentId);
+            if (children.length === 0) break;
+            
+            const childType = children[0].type;
+            const levelLabel = labels[childType] || `Level ${level}`;
+            
+            slicers.push(
+                <div key={`level-${level}`}>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{levelLabel}</label>
+                    <SearchableSelect
+                        options={children.map(p => ({ value: p.id, label: p.name }))}
+                        value={selectedHierarchyIds[level] || null}
+                        onChange={(value) => handleHierarchyChange(level, value)}
+                        placeholder={`Select ${levelLabel}...`}
+                    />
+                </div>
+            );
+            
+            if (!selectedHierarchyIds[level]) break;
+            parentId = selectedHierarchyIds[level];
+            level++;
+        }
+    
+        return slicers;
+    };
+
 
     return (
         <div className="space-y-6">
@@ -214,61 +350,54 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                         <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
                             <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{recordToEdit ? `Editing Record for ${recordToEdit.date}` : 'Record Progress'}</h3>
                             <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className={recordToEdit ? 'pointer-events-none opacity-60' : ''}>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Activity</label>
-                                    <ProjectTreeSelect
-                                        projects={projects}
-                                        selectedId={selectedActivityId}
-                                        onSelect={handleActivitySelect}
-                                        placeholder="Select an activity..."
-                                        selectableNodeTypes={['Activity']}
-                                    />
+                                <div className="space-y-3">
+                                    {renderSlicers()}
                                 </div>
                                 
                                 {selectedActivityId && (
                                     <>
                                         <hr className="border-slate-200 dark:border-slate-700"/>
-                                        <div>
-                                            <label htmlFor="date-picker" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-                                            <div className="flex">
-                                                <input type="date" id="date-picker" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-                                                    className="block w-full pl-3 pr-2 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-l-md"
-                                                    max={new Date().toISOString().split('T')[0]}
-                                                    disabled={!!recordToEdit}
-                                                />
-                                                {!recordToEdit && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-                                                        className="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 focus:border-[#28a745] focus:outline-none focus:ring-1 focus:ring-[#28a745]"
-                                                    >
-                                                        Today
-                                                    </button>
-                                                )}
+                                        {!recordToEdit && (
+                                            <div>
+                                                <label htmlFor="date-picker" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+                                                <div className="flex">
+                                                    <input type="date" id="date-picker" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                                                        className="block w-full pl-3 pr-2 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-l-md"
+                                                        max={new Date().toISOString().split('T')[0]}
+                                                    />
+                                                    <button type="button" onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600">Today</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center justify-between pt-1">
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Shift</label>
+                                            <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-700/50 rounded-lg">
+                                                <button type="button" onClick={() => setShift(Shift.DAY)} className={`px-3 py-1 text-sm rounded-md transition-all ${shift === Shift.DAY ? 'bg-white dark:bg-slate-600 shadow' : 'text-slate-600 dark:text-slate-300'}`}>Day</button>
+                                                <button type="button" onClick={() => setShift(Shift.NIGHT)} className={`px-3 py-1 text-sm rounded-md transition-all ${shift === Shift.NIGHT ? 'bg-white dark:bg-slate-600 shadow' : 'text-slate-600 dark:text-slate-300'}`}>Night</button>
                                             </div>
                                         </div>
                                         <div>
                                             <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                {recordToEdit ? 'Daily Quantity Executed' : 'Cumulative Quantity Executed'}
+                                                Cumulative Quantity Executed
                                             </label>
                                             <div className="relative">
                                                 <input type="number" id="quantity" value={quantity} onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
                                                     className="block w-full pl-3 pr-12 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
-                                                    placeholder={recordToEdit ? '' : `Current is ${currentCumulativeQtyForDisplay.toFixed(2)}`}
-                                                    step="any" min={recordToEdit ? 0 : currentCumulativeQtyForDisplay}
+                                                    placeholder={`Current is ${currentCumulativeQtyForDisplay.toFixed(2)}`}
+                                                    step="any" min={currentCumulativeQtyForDisplay}
                                                 />
                                                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                                     <span className="text-slate-500 sm:text-sm">{selectedActivity?.uom}</span>
                                                 </div>
                                             </div>
                                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                                {recordToEdit ? 'Enter the quantity executed only for this day.' : 'Enter the total quantity completed up to the selected date.'}
+                                                Enter the total quantity completed up to the selected date.
                                             </p>
                                         </div>
-                                        {!selectedActivity.totalQty && (
+                                        {!selectedActivity?.totalQty && (
                                             <div>
                                                 <label htmlFor="manualPercentage" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                    {recordToEdit ? 'Manual Progress % (Optional)' : 'Cumulative Progress % (Optional)'}
+                                                    Cumulative Progress % (Optional)
                                                 </label>
                                                 <input type="number" id="manualPercentage" value={manualPercentage} onChange={(e) => setManualPercentage(e.target.value === '' ? '' : Number(e.target.value))}
                                                     className="block w-full pl-3 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
@@ -319,15 +448,16 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                                 <thead className="bg-slate-50 dark:bg-slate-700 sticky top-0">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Daily Qty</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Cumulative Qty</th>
+                                        <SortableHeader sortKey="date" title="Date" requestSort={requestSort} sortConfig={sortConfig} />
+                                        <SortableHeader sortKey="shift" title="Shift" requestSort={requestSort} sortConfig={sortConfig} />
+                                        <SortableHeader sortKey="qty" title="Daily Qty" requestSort={requestSort} sortConfig={sortConfig} />
+                                        <SortableHeader sortKey="cumulativeQty" title="Cumulative Qty" requestSort={requestSort} sortConfig={sortConfig} />
                                         <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Progress %</th>
                                         {canModify && <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>}
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                                    {cumulativeData.map(record => {
+                                    {sortedCumulativeData.map(record => {
                                         const percentage = selectedActivity.totalQty
                                             ? (record.cumulativeQty / selectedActivity.totalQty) * 100
                                             : record.manualPercentage ?? null;
@@ -335,6 +465,7 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                         return (
                                             <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                                 <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.date}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.shift || 'Day'}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.qty.toFixed(2)}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.cumulativeQty.toFixed(2)}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
@@ -362,14 +493,9 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                    ) : (
                     <div className="text-center py-10 px-4">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-white">No Activity Selected</h3>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Please select an activity to view its progress records.</p>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Please select a project and all subsequent levels down to an activity to view and record progress.</p>
                     </div>
                    )}
-                   {errorMessage && (
-                        <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-md">
-                            <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

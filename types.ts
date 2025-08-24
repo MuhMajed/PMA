@@ -81,6 +81,7 @@ export interface ProgressRecord {
   date: string; // YYYY-MM-DD
   qty: number; // Represents daily progress quantity
   manualPercentage?: number; // Optional user-defined cumulative percentage
+  shift?: Shift;
 }
 
 export type UserRole = 'Admin' | 'Project Manager' | 'Data Entry';

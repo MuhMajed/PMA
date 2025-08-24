@@ -1,9 +1,8 @@
 
-
 import React, { useMemo, useRef } from 'react';
 import { ManpowerRecord, Subcontractor, Project, Employee, Shift, EmployeeType, Theme } from '../types';
 import { Pie, Bar, getElementAtEvent } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler } from 'chart.js';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler, ChartOptions } from 'chart.js';
 import { UsersIcon } from './icons/UsersIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
@@ -26,13 +25,13 @@ interface DashboardMetricsProps {
     employees: Employee[];
     selectedProjects: string[];
     theme: Theme;
-    // New stat props
     totalEmployees: number;
     todaysHeadcount: number;
     avgDailyManpower: number;
-    // Cross-filtering
     crossFilters: CrossFilters;
     setCrossFilters: React.Dispatch<React.SetStateAction<CrossFilters>>;
+    dateRange: { start: string; end: string };
+    showEmptyDays: boolean;
 }
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode }> = ({ title, value, icon }) => (
@@ -76,7 +75,8 @@ const FilterBadge: React.FC<{ label: string; value: string; onClear: () => void 
 
 const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
     records, subcontractors, projects, employees, selectedProjects, theme,
-    totalEmployees, todaysHeadcount, avgDailyManpower, crossFilters, setCrossFilters
+    totalEmployees, todaysHeadcount, avgDailyManpower, crossFilters, setCrossFilters,
+    dateRange, showEmptyDays
 }) => {
     
     const employeeTypeMap = useMemo(() => new Map(employees.map(e => [e.empId, e.type])), [employees]);
@@ -95,20 +95,12 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
     const cumulativeHeadcount = crossFilteredRecords.length;
     const totalHours = crossFilteredRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
     
-    // Manpower Histogram Data (Stacked Bar Chart)
     const manpowerByDateAndProject = useMemo(() => {
         const projectMapCache = new Map<string, Project | null>();
         const getTopLevelProject = (projectId: string, allProjects: Project[]): Project | null => {
-            if (projectMapCache.has(projectId)) {
-                return projectMapCache.get(projectId)!;
-            }
-
+            if (projectMapCache.has(projectId)) return projectMapCache.get(projectId)!;
             let current = allProjects.find(p => p.id === projectId);
-            if (!current) {
-                projectMapCache.set(projectId, null);
-                return null;
-            }
-            
+            if (!current) { projectMapCache.set(projectId, null); return null; }
             const path = [current];
             while (current.parentId) {
                 const parent = allProjects.find(p => p.id === current.parentId);
@@ -116,9 +108,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                 current = parent;
                 path.push(current);
             }
-            
             path.forEach(node => projectMapCache.set(node.id, current));
-            
             return current;
         };
 
@@ -126,37 +116,51 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
             const date = record.date;
             const topLevelProject = getTopLevelProject(record.project, projects);
             if (!topLevelProject) return acc;
-
             const projectName = topLevelProject.name;
-
-            if (!acc[date]) {
-                acc[date] = {};
-            }
+            if (!acc[date]) acc[date] = {};
             acc[date][projectName] = (acc[date][projectName] || 0) + 1;
             return acc;
         }, {} as { [date: string]: { [projectName: string]: number } });
     }, [crossFilteredRecords, projects]);
 
     const trendChartData = useMemo(() => {
-        const sortedDates = Object.keys(manpowerByDateAndProject).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        const { start, end } = dateRange;
+        if (!start || !end) return { labels: [], datasets: [] };
+
+        const allDatesInRange: string[] = [];
+        let currentDate = new Date(start);
+        const endDate = new Date(end);
+        currentDate.setUTCHours(12, 0, 0, 0); // Avoid timezone issues
+        endDate.setUTCHours(12, 0, 0, 0);
+
+        while (currentDate <= endDate) {
+            allDatesInRange.push(currentDate.toISOString().split('T')[0]);
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        const dateDataMap = new Map(allDatesInRange.map(date => {
+            const dayOfWeek = new Date(date + 'T12:00:00Z').getUTCDay();
+            const total = Object.values(manpowerByDateAndProject[date] || {}).reduce((s, c) => s + c, 0);
+            return [date, { total, isWeekend: dayOfWeek === 5 || dayOfWeek === 4 }]; // Friday or Saturday weekend
+        }));
         
-        const allProjectNamesInSelection = Array.from(
-            new Set(
-                Object.values(manpowerByDateAndProject).flatMap(dateData => Object.keys(dateData))
-            )
-        ).sort();
+        const finalDates = showEmptyDays ? allDatesInRange : allDatesInRange.filter(date => (dateDataMap.get(date)?.total || 0) > 0);
+
+        if(finalDates.length === 0) return { labels: [], datasets: [] };
+
+        const allProjectNamesInSelection = Array.from(new Set(Object.values(manpowerByDateAndProject).flatMap(Object.keys))).sort();
 
         const datasets = allProjectNamesInSelection.map((projectName, index) => ({
             label: projectName,
-            data: sortedDates.map(date => manpowerByDateAndProject[date]?.[projectName] || 0),
+            data: finalDates.map(date => manpowerByDateAndProject[date]?.[projectName] || 0),
             backgroundColor: materialChartColors[index % materialChartColors.length],
         }));
 
         return {
-            labels: sortedDates,
+            labels: finalDates,
             datasets,
         };
-    }, [manpowerByDateAndProject]);
+    }, [manpowerByDateAndProject, dateRange, showEmptyDays]);
 
 
     // Subcontractor Distribution Data (Bar Chart)
@@ -253,8 +257,10 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
     // Memoized Chart Options
     const legendColor = theme === 'dark' ? '#cbd5e1' : '#475569';
     const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
+    const weekendGridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9';
 
-    const trendChartOptions = useMemo(() => ({
+    const trendChartOptions: ChartOptions<'bar'> = useMemo(() => ({
+        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -262,12 +268,28 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
             title: { display: true, text: 'Manpower Histogram', color: legendColor, font: { size: 16 } }
         },
         scales: {
-            x: { ticks: { color: legendColor }, grid: { color: gridColor }, stacked: true },
+            x: { 
+                ticks: { color: legendColor }, 
+                grid: { 
+                    color: (context: any) => {
+                        if (context.tick && trendChartData.labels) {
+                            const dateStr = trendChartData.labels[context.tick.value];
+                            if(dateStr) {
+                                const dayOfWeek = new Date(dateStr + 'T12:00:00Z').getUTCDay();
+                                return (dayOfWeek === 4 || dayOfWeek === 5) ? weekendGridColor : gridColor;
+                            }
+                        }
+                        return gridColor;
+                    }
+                 }, 
+                stacked: true 
+            },
             y: { ticks: { color: legendColor }, grid: { color: gridColor }, beginAtZero: true, stacked: true }
         }
-    }), [theme, legendColor, gridColor]);
+    }), [theme, legendColor, gridColor, trendChartData.labels, weekendGridColor]);
 
-    const subcontractorChartOptions = useMemo(() => ({
+    const subcontractorChartOptions: ChartOptions<'bar'> = useMemo(() => ({
+        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -280,7 +302,8 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         }
     }), [theme, legendColor, gridColor]);
     
-    const shiftChartOptions = useMemo(() => ({
+    const shiftChartOptions: ChartOptions<'pie'> = useMemo(() => ({
+        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -289,7 +312,8 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         }
     }), [theme, legendColor]);
     
-    const typeChartOptions = useMemo(() => ({
+    const typeChartOptions: ChartOptions<'pie'> = useMemo(() => ({
+        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -300,7 +324,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 print:grid-cols-5 gap-6">
                 <StatCard title="No. of Employees" value={totalEmployees} icon={<UsersIcon className="h-6 w-6" />} />
                 <StatCard title="Today's Headcount" value={todaysHeadcount} icon={<UserCircleIcon className="h-6 w-6" />} />
                 <StatCard title="Cumulative Headcount" value={cumulativeHeadcount} icon={<UsersGroupIcon className="h-6 w-6" />} />
@@ -311,7 +335,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
             {records.length > 0 ? (
                 <div className="space-y-6">
                      {hasActiveFilters && (
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm flex items-center justify-between flex-wrap gap-2">
+                        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm flex items-center justify-between flex-wrap gap-2 no-print">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Filters:</span>
                                 {crossFilters.subcontractor && <FilterBadge label="Subcontractor" value={crossFilters.subcontractor} onClear={() => setCrossFilters(p => ({ ...p, subcontractor: null }))} />}
@@ -324,10 +348,10 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                         </div>
                     )}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print:h-[40vh]">
                             <Bar data={trendChartData} options={trendChartOptions} />
                         </div>
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print:h-[40vh]">
                             <Bar 
                                 ref={subcontractorChartRef}
                                 data={subcontractorChartData} 
@@ -337,7 +361,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print:h-[35vh]">
                             <Pie 
                                 ref={shiftChartRef}
                                 data={shiftChartData} 
@@ -345,7 +369,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                                 onClick={(event) => handleChartClick(event, shiftChartRef, shiftChartData, 'shift')}
                             />
                         </div>
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print:h-[35vh]">
                            <Pie
                                 ref={typeChartRef}
                                 data={typeChartData}

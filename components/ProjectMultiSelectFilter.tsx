@@ -21,9 +21,44 @@ const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
 export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> = ({ projects, selectedIds, onSelectionChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+    const [searchTerm, setSearchTerm] = useState('');
     const wrapperRef = useRef<HTMLDivElement>(null);
     
-    const projectTree = useMemo(() => projects.filter(p => p.parentId === null), [projects]);
+    const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
+
+    const filteredProjects = useMemo(() => {
+        if (!searchTerm) return projects;
+        const lowercasedFilter = searchTerm.toLowerCase();
+        
+        const filteredIds = new Set<string>();
+
+        for (const project of projects) {
+            if (project.name.toLowerCase().includes(lowercasedFilter)) {
+                filteredIds.add(project.id);
+                // Add all ancestors to ensure the path is visible
+                let current = project;
+                while (current.parentId) {
+                    filteredIds.add(current.parentId);
+                    current = projectMap.get(current.parentId)!;
+                    if (!current) break;
+                }
+            }
+        }
+        return projects.filter(p => filteredIds.has(p.id));
+    }, [searchTerm, projects, projectMap]);
+
+    const projectTree = useMemo(() => filteredProjects.filter(p => p.parentId === null), [filteredProjects]);
+
+    // Auto-expand all nodes when searching
+    useEffect(() => {
+        if (searchTerm) {
+            const allIds: Record<string, boolean> = {};
+            filteredProjects.forEach(p => { allIds[p.id] = true; });
+            setExpandedIds(allIds);
+        } else {
+            setExpandedIds({});
+        }
+    }, [searchTerm, filteredProjects]);
 
     const handleToggleNode = (id: string) => {
         setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
@@ -59,7 +94,7 @@ export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> =
     }, [wrapperRef]);
 
     const renderNode = useCallback((project: Project) => {
-        const children = projects.filter(p => p.parentId === project.id);
+        const children = filteredProjects.filter(p => p.parentId === project.id);
         const hasChildren = children.length > 0;
         const isExpanded = expandedIds[project.id];
         
@@ -94,7 +129,7 @@ export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> =
                 )}
             </div>
         )
-    }, [projects, expandedIds, selectedIds, handleSelectionChange]);
+    }, [filteredProjects, expandedIds, selectedIds, handleSelectionChange, projects]);
     
     const summaryText = useMemo(() => {
         if (selectedIds.length === 0) return "Select Projects";
@@ -113,7 +148,7 @@ export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> =
             const project = projects.find(p => p.id === topLevelSelected[0]);
             return project ? project.name : "1 Project Selected";
         }
-        return `${topLevelSelected.length} Projects Selected`;
+        return `${topLevelSelected.length || selectedIds.length} items selected`;
     }, [selectedIds, projects]);
 
     return (
@@ -130,13 +165,23 @@ export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> =
             </button>
 
             {isOpen && (
-                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-slate-800 shadow-lg rounded-md border border-slate-300 dark:border-slate-600 p-2">
-                    <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-200 dark:border-slate-700">
+                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-slate-800 shadow-lg rounded-md border border-slate-300 dark:border-slate-600">
+                    <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+                         <input
+                            type="text"
+                            placeholder="Search..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full px-2 py-1 text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="flex justify-between items-center p-2 border-b border-slate-200 dark:border-slate-700">
                         <button onClick={() => handleSelectAll(true)} className="text-sm text-[#28a745] hover:underline">Select All</button>
                         <button onClick={() => handleSelectAll(false)} className="text-sm text-red-500 hover:underline">Deselect All</button>
                     </div>
-                    <div className="max-h-60 overflow-y-auto">
-                         {projectTree.map(renderNode)}
+                    <div className="max-h-60 overflow-y-auto p-2">
+                         {projectTree.length > 0 ? projectTree.map(renderNode) : <div className="text-sm text-slate-500 text-center py-2">No projects found.</div>}
                     </div>
                 </div>
             )}

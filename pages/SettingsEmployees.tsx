@@ -150,7 +150,7 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
             </PageHeader>
 
              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     <input type="text" name="name" placeholder="Filter by Name..." value={filters.name} onChange={handleFilterChange} className="block w-full border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm" />
                     <input type="text" name="empId" placeholder="Filter by Employee ID..." value={filters.empId} onChange={handleFilterChange} className="block w-full border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm" />
                     <input type="text" name="idIqama" placeholder="Filter by ID/Iqama..." value={filters.idIqama} onChange={handleFilterChange} className="block w-full border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm" />
@@ -180,14 +180,14 @@ const SettingsEmployees: React.FC<SettingsEmployeesProps> = ({ employees, profes
                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                             {filteredEmployees.map((employee) => (
                                 <tr key={employee.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white truncate">{employee.empId}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate">{employee.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate">{employee.profession}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{employee.joiningDate || 'N/A'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{employee.modifiedDate}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate">{employee.createdBy}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate">{employee.modifiedBy}</td>
-                                    {!isReadOnly && <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{employee.empId}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.name}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.profession}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.joiningDate || 'N/A'}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.modifiedDate}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.createdBy}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{employee.modifiedBy}</td>
+                                    {!isReadOnly && <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
                                         <button onClick={() => openModal(employee)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
                                         <button 
                                             onClick={() => handleDelete(employee)}

@@ -27,7 +27,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         setCurrentPage={setCurrentPage}
         currentUser={currentUser}
       />
-      <div className="flex-1 flex flex-col transition-all duration-300">
+      <div className="flex-1 flex flex-col transition-all duration-300 min-w-0">
         <Header 
           toggleSidebar={toggleSidebar}
           theme={theme}

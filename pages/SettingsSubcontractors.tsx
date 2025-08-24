@@ -138,7 +138,7 @@ const SettingsSubcontractors: React.FC<SettingsSubcontractorsProps> = ({
             </PageHeader>
             
             <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     <input type="text" name="name" placeholder="Filter by Name..." value={filters.name} onChange={handleFilterChange} className="block w-full border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm" />
                     <input type="text" name="contactPerson" placeholder="Filter by Contact..." value={filters.contactPerson} onChange={handleFilterChange} className="block w-full border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm" />
                     <select name="nationality" value={filters.nationality} onChange={handleFilterChange} className="block w-full border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm">
@@ -173,12 +173,12 @@ const SettingsSubcontractors: React.FC<SettingsSubcontractorsProps> = ({
                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                             {filteredSubcontractors.map((sub) => (
                                 <tr key={sub.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{sub.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{subcontractors.find(s => s.id === sub.mainContractorId)?.name || 'N/A'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{sub.contactPerson}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{sub.email}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{sub.scope}</td>
-                                    {!isReadOnly && <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{sub.name}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{subcontractors.find(s => s.id === sub.mainContractorId)?.name || 'N/A'}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{sub.contactPerson}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{sub.email}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{sub.scope}</td>
+                                    {!isReadOnly && <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
                                         <button onClick={() => openModal(sub)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
                                         <Tooltip content={isSubInUse(sub.name) ? "Cannot delete: subcontractor is in use" : ''}>
                                             <button 

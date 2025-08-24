@@ -4,31 +4,82 @@ import { SCOPES } from './constants';
 // This file acts as a simple in-memory database for the API simulation.
 
 // --- PROJECTS ---
+// Helper functions to generate large project structures
+const generateJeddahTower = (): Project[] => {
+    const projects: Project[] = [];
+    const rootId = 'jt_root';
+    projects.push({ id: rootId, name: 'Jedda Tower', parentId: null, type: 'Project' });
+
+    // Podium
+    const podiumId = 'jt_podium';
+    projects.push({ id: podiumId, name: 'Podium', parentId: rootId, type: 'Level1' });
+    for (let i = 1; i <= 4; i++) {
+        const areaId = `jt_podium_a${i}`;
+        projects.push({ id: areaId, name: `Area ${i}`, parentId: podiumId, type: 'Level2' });
+        projects.push({ id: `${areaId}_act`, name: 'General Works', parentId: areaId, type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 });
+    }
+
+    // Tower
+    const towerId = 'jt_tower';
+    projects.push({ id: towerId, name: 'Tower', parentId: rootId, type: 'Level1' });
+    for (let i = 1; i <= 300; i++) {
+        const levelId = `jt_tower_l${i}`;
+        projects.push({ id: levelId, name: `Level ${i}`, parentId: towerId, type: 'Level2' });
+
+        const subLevels = [
+            { id: `${levelId}_core`, name: 'Core' },
+            { id: `${levelId}_wa`, name: 'Wing A' },
+            { id: `${levelId}_wb`, name: 'Wing B' },
+            { id: `${levelId}_wc`, name: 'Wing C' },
+        ];
+
+        for (const sub of subLevels) {
+            projects.push({ id: sub.id, name: sub.name, parentId: levelId, type: 'Level3' });
+            projects.push({ id: `${sub.id}_act`, name: 'General Works', parentId: sub.id, type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 });
+        }
+    }
+    return projects;
+};
+
+const generateNGH = (): Project[] => {
+    const projects: Project[] = [];
+    const rootId = 'ngh_root';
+    projects.push({ id: rootId, name: 'NGH', parentId: null, type: 'Project' });
+
+    const cities = ['Jeddah', 'Madinah', 'Bahra', 'Dammam', 'Riyadh', 'X', 'Y'];
+    for (const city of cities) {
+        const cityId = `ngh_${city.toLowerCase()}`;
+        projects.push({ id: cityId, name: city, parentId: rootId, type: 'Level1' });
+        projects.push({ id: `${cityId}_rework`, name: 'Rework', parentId: cityId, type: 'Activity', uom: 'LS', totalQty: 1, universalNorm: 1 });
+    }
+    return projects;
+};
+
+const generateKSU = (): Project[] => {
+    const projects: Project[] = [];
+    const rootId = 'ksu_root';
+    projects.push({ id: rootId, name: 'KSU', parentId: null, type: 'Project' });
+    const southVillaId = 'ksu_sv';
+    projects.push({ id: southVillaId, name: 'South Villa', parentId: rootId, type: 'Level1' });
+
+    const villas = [
+        { id: 'ksu_sv_th', name: 'Town House' },
+        { id: 'ksu_sv_5b', name: '5 BED VILLAS' },
+        { id: 'ksu_sv_4b', name: '4 BED VILLAS' },
+    ];
+
+    for (const villa of villas) {
+        projects.push({ id: villa.id, name: villa.name, parentId: southVillaId, type: 'Level2' });
+        projects.push({ id: `${villa.id}_fin`, name: 'Finishing', parentId: villa.id, type: 'Activity', uom: 'm2', totalQty: 1000, universalNorm: 1 });
+    }
+    return projects;
+};
+
 export let projects: Project[] = [
-  // Project 1
-  { id: 'p1', name: 'Alpha Tower Construction', parentId: null, type: 'Project' },
-  { id: 'p1_loc1', name: 'Doha, Qatar', parentId: 'p1', type: 'Level1' },
-  { id: 'p1_area1', name: 'West Bay', parentId: 'p1_loc1', type: 'Level2' },
-  { id: 'p1_bld1', name: 'Tower A', parentId: 'p1_area1', type: 'Level3' },
-  { id: 'p1_flr1', name: 'GF-10', parentId: 'p1_bld1', type: 'Level4' },
-  { id: 'p1_zone1', name: 'Zone 1', parentId: 'p1_flr1', type: 'Level5' },
-  { id: 'p1_act1', name: 'Structural Works', parentId: 'p1_zone1', type: 'Activity', uom: 'm³', totalQty: 50000, rate: 150 },
-
-  // Project 2
-  { id: 'p2', name: 'Beta Bridge Expansion', parentId: null, type: 'Project' },
-  { id: 'p2_loc1', name: 'Al Khor, Qatar', parentId: 'p2', type: 'Level1' },
-  { id: 'p2_area1', name: 'Industrial Area', parentId: 'p2_loc1', type: 'Level2' },
-  { id: 'p2_zone1', name: 'Bridge Section 2', parentId: 'p2_area1', type: 'Level5' },
-  { id: 'p2_act1', name: 'Piling Works', parentId: 'p2_zone1', type: 'Activity', uom: 'nr', totalQty: 12000, rate: 1200 },
-
-  // Project 3
-  { id: 'p3', name: 'Gamma Shopping Mall', parentId: null, type: 'Project' },
-  { id: 'p3_loc1', name: 'Lusail, Qatar', parentId: 'p3', type: 'Level1' },
-  { id: 'p3_area1', name: 'Marina District', parentId: 'p3_loc1', type: 'Level2' },
-  { id: 'p3_bld1', name: 'Main Mall', parentId: 'p3_area1', type: 'Level3' },
-  { id: 'p3_act1', name: 'Finishing Works', parentId: 'p3_bld1', type: 'Activity', uom: 'm2', totalQty: 250000, rate: 80 },
-
-  // Taawon Project
+  ...generateJeddahTower(),
+  ...generateNGH(),
+  ...generateKSU(),
+  // Taawon Project (preserved)
   { id: 'p4', name: 'Taawon', parentId: null, type: 'Project', hierarchyLabels: {
     Level1: 'Location',
     Level2: 'Work Type',
@@ -36,36 +87,23 @@ export let projects: Project[] = [
     Level4: 'Package',
     Level5: 'Sub-Package',
   }},
-  // Locations
   { id: 'p4_loc1', name: 'Dammam', parentId: 'p4', type: 'Level1' },
   { id: 'p4_loc2', name: 'Khobar', parentId: 'p4', type: 'Level1' },
-  
-  // --- Dammam Path ---
-  // Work Types (Area)
   { id: 'p4_dammam_area1', name: 'Substructure', parentId: 'p4_loc1', type: 'Level2' },
   { id: 'p4_dammam_area2', name: 'Superstructure', parentId: 'p4_loc1', type: 'Level2' },
-  // Sub-level (Building) for Substructure
   { id: 'p4_dammam_sub_bld1', name: 'Underground', parentId: 'p4_dammam_area1', type: 'Level3' },
-  // Sub-level (Building) for Superstructure
   { id: 'p4_dammam_super_bld1', name: 'Zone 1', parentId: 'p4_dammam_area2', type: 'Level3' },
   { id: 'p4_dammam_super_bld2', name: 'Zone 2', parentId: 'p4_dammam_area2', type: 'Level3' },
-  // Package (Floor) for Underground
   { id: 'p4_dammam_ug_flr1', name: 'Concrete', parentId: 'p4_dammam_sub_bld1', type: 'Level4' },
   { id: 'p4_dammam_ug_flr2', name: 'Finishing', parentId: 'p4_dammam_sub_bld1', type: 'Level4' },
-  // Sub-Package (Zone) for Concrete
   { id: 'p4_dammam_ug_con_zone1', name: 'Reinforced Concrete', parentId: 'p4_dammam_ug_flr1', type: 'Level5' },
   { id: 'p4_dammam_ug_con_zone2', name: 'Plain Concrete', parentId: 'p4_dammam_ug_flr1', type: 'Level5' },
-  // Activities for Reinforced Concrete
   { id: 'p4_act_rc_pour_v', name: 'Vertical Elements (Columns): Concrete Pouring', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm³', totalQty: 12000, universalNorm: 0.4, companyNorm: 0.45, rate: 180 },
   { id: 'p4_act_rc_form_v', name: 'Vertical Elements (Columns): Formwork', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm²', totalQty: 80000, universalNorm: 1.25, companyNorm: 1.33, rate: 45 },
   { id: 'p4_act_rc_rebar_h', name: 'Horizontal Elements (Slabs): Rebar', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'ton', totalQty: 1500, universalNorm: 0.05, companyNorm: 0.056, rate: 3000 },
   { id: 'p4_act_rc_deshutter_h', name: 'Horizontal Elements (Slabs): Deshuttering', parentId: 'p4_dammam_ug_con_zone1', type: 'Activity', uom: 'm²', totalQty: 80000, universalNorm: 2.5, companyNorm: 2.86, rate: 20 },
-
-  // --- Khobar Path (example subset) ---
-  // Work Types (Area)
   { id: 'p4_khobar_area1', name: 'Substructure', parentId: 'p4_loc2', type: 'Level2' },
   { id: 'p4_khobar_area2', name: 'Superstructure', parentId: 'p4_loc2', type: 'Level2' },
-  // Sub-level (Building) for Superstructure
   { id: 'p4_khobar_super_bld1', name: 'Zone 1 to 10', parentId: 'p4_khobar_area2', type: 'Level3' },
 ];
 
@@ -130,7 +168,7 @@ export let records: ManpowerRecord[] = [
     empId: 'EMP001',
     name: 'John Doe',
     profession: 'Site Engineer',
-    project: 'p1_act1',
+    project: 'p4_act_rc_form_v', // Remapped
     status: ManpowerStatus.ACTIVE,
     nationality: 'American',
     subcontractor: 'BuildWell Inc.',
@@ -143,7 +181,7 @@ export let records: ManpowerRecord[] = [
     empId: 'EMP002',
     name: 'Arjun Kumar',
     profession: 'Electrician',
-    project: 'p1_act1',
+    project: 'p4_act_rc_form_v', // Remapped
     status: ManpowerStatus.ACTIVE,
     nationality: 'Indian',
     subcontractor: 'Spark Electricals',
@@ -156,7 +194,7 @@ export let records: ManpowerRecord[] = [
     empId: 'EMP003',
     name: 'Peter Jones',
     profession: 'Carpenter',
-    project: 'p2_act1',
+    project: 'p4_act_rc_pour_v', // Remapped
     status: ManpowerStatus.ON_LEAVE,
     nationality: 'British',
     subcontractor: 'WoodCrafters',
@@ -169,7 +207,7 @@ export let records: ManpowerRecord[] = [
     empId: 'EMP004',
     name: 'M. Ali',
     profession: 'Mason',
-    project: 'p1_act1',
+    project: 'p4_act_rc_pour_v', // Remapped
     status: ManpowerStatus.IDLE,
     nationality: 'Pakistani',
     subcontractor: 'BuildWell Inc.',
@@ -182,7 +220,7 @@ export let records: ManpowerRecord[] = [
     empId: 'EMP005',
     name: 'Jose Rizal',
     profession: 'General Laborer',
-    project: 'p3_act1',
+    project: 'p4_act_rc_rebar_h', // Remapped
     status: ManpowerStatus.TRANSFERRED,
     nationality: 'Filipino',
     subcontractor: 'General Works Ltd.',

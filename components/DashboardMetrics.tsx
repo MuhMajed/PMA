@@ -300,7 +300,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 <StatCard title="No. of Employees" value={totalEmployees} icon={<UsersIcon className="h-6 w-6" />} />
                 <StatCard title="Today's Headcount" value={todaysHeadcount} icon={<UserCircleIcon className="h-6 w-6" />} />
                 <StatCard title="Cumulative Headcount" value={cumulativeHeadcount} icon={<UsersGroupIcon className="h-6 w-6" />} />

@@ -320,65 +320,58 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                 <thead className="bg-slate-50 dark:bg-slate-700 sticky top-0">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Date</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Daily Qty</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Cumulative Qty</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Progress %</th>
-                                        {canModify && <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Actions</th>}
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Daily Qty</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Cumulative Qty</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Progress %</th>
+                                        {canModify && <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>}
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                                    {cumulativeData.map(rec => {
-                                        const percentage = selectedActivity.totalQty ? (rec.cumulativeQty / selectedActivity.totalQty) * 100 : rec.manualPercentage ?? null;
+                                    {cumulativeData.map(record => {
+                                        const percentage = selectedActivity.totalQty
+                                            ? (record.cumulativeQty / selectedActivity.totalQty) * 100
+                                            : record.manualPercentage ?? null;
+
                                         return (
-                                        <tr key={rec.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{rec.date}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 text-right">{rec.qty.toFixed(2)}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white text-right">{rec.cumulativeQty.toFixed(2)}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400 text-right">
-                                                {percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'}
-                                            </td>
-                                            {canModify && (
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
-                                                    <button onClick={() => setRecordToEdit(rec)} className="text-[#28a745] hover:text-green-700"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
-                                                    {canDelete && <button 
-                                                    onClick={() => handleDelete(rec)}
-                                                    className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5 pointer-events-none" /></button>}
+                                            <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.date}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.qty.toFixed(2)}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.cumulativeQty.toFixed(2)}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
+                                                    {percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'}
                                                 </td>
-                                            )}
-                                        </tr>
-                                    )})}
+                                                {canModify && (
+                                                    <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
+                                                        <button onClick={() => setRecordToEdit(record)} className="text-[#28a745] hover:text-green-700">
+                                                            <PencilIcon className="h-5 w-5" />
+                                                        </button>
+                                                        {canDelete && (
+                                                            <button onClick={() => handleDelete(record)} className="text-red-600 hover:text-red-800">
+                                                                <TrashIcon className="h-5 w-5" />
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
-                            {cumulativeData.length === 0 && (
-                                <p className="text-center text-slate-500 dark:text-slate-400 py-8">No progress records for this activity.</p>
-                            )}
                         </div>
                     </>
                    ) : (
-                        <div className="flex items-center justify-center h-full">
-                            <p className="text-center text-slate-500 dark:text-slate-400 py-8">
-                                {canModify ? 'Please select an activity to record or view progress.' : 'Please select an activity to view progress.'}
-                            </p>
-                        </div>
+                    <div className="text-center py-10 px-4">
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">No Activity Selected</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Please select an activity to view its progress records.</p>
+                    </div>
                    )}
+                   {errorMessage && (
+                        <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-md">
+                            <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
+                        </div>
+                    )}
                 </div>
             </div>
-            {errorMessage && (
-                <Modal title="Validation Error" onClose={() => setErrorMessage(null)}>
-                    <div className="p-6">
-                        <p className="text-slate-700 dark:text-slate-300">{errorMessage}</p>
-                    </div>
-                    <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 text-right">
-                        <button
-                            type="button"
-                            onClick={() => setErrorMessage(null)}
-                            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#28a745] hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#28a745]"
-                        >
-                            OK
-                        </button>
-                    </div>
-                </Modal>
-            )}
         </div>
     );
 };

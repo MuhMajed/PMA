@@ -129,16 +129,16 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, project
 
                                 return (
                                 <tr key={user.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{user.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{user.empId}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{user.email}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{user.username}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{user.name}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{user.empId}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{user.email}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{user.username}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${roleColors[user.role]}`}>
                                             {user.role}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
                                         {(!user.assignedProjects || user.assignedProjects.length === 0) ? (
                                              <span className="italic">All Projects</span>
                                         ) : (
@@ -147,7 +147,7 @@ const SettingsUsers: React.FC<SettingsUsersProps> = ({ users, employees, project
                                             </Tooltip>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                                    <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
                                         <button onClick={() => openResetModal(user)} className="text-yellow-600 hover:text-yellow-800" title="Reset Password"><KeyIcon className="h-5 w-5 pointer-events-none" /></button>
                                         <button onClick={() => openModal(user)} className="text-[#28a745] hover:text-green-700" title="Edit User"><PencilIcon className="h-5 w-5 pointer-events-none" /></button>
                                         <Tooltip content={user.id === currentUser.id ? "You cannot delete your own account" : ''}>

@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useCallback } from 'react';
 import { ManpowerRecord, Shift, Project, ProjectNodeType, User } from '../types';
 import { PencilIcon } from './icons/PencilIcon';
@@ -116,15 +117,15 @@ const ManpowerTable: React.FC<ManpowerTableProps> = ({ records, projects, onEdit
             const fullPath = getFullPathString(record.project);
             return (
                 <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{record.empId}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{record.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{record.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{record.profession}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{record.subcontractor}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 max-w-xs truncate" title={fullPath}>{fullPath || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{renderShift(record.shift)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 text-center">{record.hoursWorked ?? 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{record.empId}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.date}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.profession}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.subcontractor}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 max-w-xs" title={fullPath}>{fullPath || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{renderShift(record.shift)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 text-center">{record.hoursWorked ?? 'N/A'}</td>
+                  <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
                     <button onClick={() => onEdit(record)} className="text-[#28a745] hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                         <PencilIcon className="h-5 w-5" />
                     </button>

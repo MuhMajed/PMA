@@ -311,7 +311,7 @@ export const userResetPassword = async ({ emailOrEmpId, code, newPassword }: { e
     await delay(300);
     if (code !== '123456') return false;
     const searchTerm = emailOrEmpId.toLowerCase();
-    const userIndex = db.users.findIndex(u => u.email.toLowerCase() === searchTerm || u.empId.toLowerCase() === searchTerm);
+    const userIndex = db.users.findIndex(u => u.username.toLowerCase() === searchTerm || u.email.toLowerCase() === searchTerm || u.empId.toLowerCase() === searchTerm);
     if (userIndex > -1) {
         db.users[userIndex].password = newPassword;
         return true;
@@ -332,5 +332,5 @@ export const findUserForLogin = async ({ emailOrEmpId, password }: { emailOrEmpI
 export const findUserForPasswordReset = async (emailOrEmpId: string): Promise<boolean> => {
     await delay(300);
     const searchTerm = emailOrEmpId.toLowerCase();
-    return db.users.some(u => u.email.toLowerCase() === searchTerm || u.empId.toLowerCase() === searchTerm);
+    return db.users.some(u => u.username.toLowerCase() === searchTerm || u.email.toLowerCase() === searchTerm || u.empId.toLowerCase() === searchTerm);
 };

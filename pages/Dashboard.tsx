@@ -8,7 +8,6 @@ import { ProjectMultiSelectFilter } from '../components/ProjectMultiSelectFilter
 import { Project } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../utils/api';
-import { PrinterIcon } from '../components/icons/PrinterIcon';
 
 const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
   let descendants: string[] = [];
@@ -161,20 +160,7 @@ const Dashboard: React.FC = () => {
             <PageHeader
                 title="Dashboard"
                 subtitle={`Overview for ${projectName}`}
-            >
-                <button
-                    onClick={() => window.print()}
-                    className="no-print flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
-                >
-                    <PrinterIcon className="h-5 w-5 mr-2" />
-                    Print Report
-                </button>
-            </PageHeader>
-            
-            <div className="print-only mb-6 border-b border-black pb-4">
-                <h1 className="text-3xl font-bold text-black">{`Dashboard Report: ${projectName}`}</h1>
-                <p className="mt-1 text-lg text-slate-800">{`Date Range: ${dateRange.start} to ${dateRange.end}`}</p>
-            </div>
+            />
             
             <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm no-print">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

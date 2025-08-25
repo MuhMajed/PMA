@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Project, ProgressRecord as ProgressRecordType, User, Shift } from '../types';
 import PageHeader from '../components/ui/PageHeader';
@@ -148,10 +149,27 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
     
 
     const handleHierarchyChange = (levelIndex: number, value: string | null) => {
-        const newHierarchy = [...selectedHierarchyIds.slice(0, levelIndex)];
+        let newHierarchy = [...selectedHierarchyIds.slice(0, levelIndex)];
         if (value) {
             newHierarchy.push(value);
+            
+            // Auto-select path if there's only one child
+            let currentNodeId = value;
+            while (true) {
+                const children = projects.filter(p => p.parentId === currentNodeId);
+                if (children.length === 1) {
+                    const child = children[0];
+                    newHierarchy.push(child.id);
+                    currentNodeId = child.id;
+                    if (child.type === 'Activity') {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
         }
+        
         setSelectedHierarchyIds(newHierarchy);
         resetForm();
     };
@@ -298,30 +316,29 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
             </div>
         );
     
-        let parentId = selectedHierarchyIds[0];
-        let level = 1;
-        while(parentId) {
+        let parentId: string | null = selectedHierarchyIds[0];
+        for (let i = 0; i < selectedHierarchyIds.length; i++) {
+            parentId = selectedHierarchyIds[i];
             const children = projects.filter(p => p.parentId === parentId);
-            if (children.length === 0) break;
-            
-            const childType = children[0].type;
-            const levelLabel = labels[childType] || `Level ${level}`;
-            
-            slicers.push(
-                <div key={`level-${level}`}>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{levelLabel}</label>
-                    <SearchableSelect
-                        options={children.map(p => ({ value: p.id, label: p.name }))}
-                        value={selectedHierarchyIds[level] || null}
-                        onChange={(value) => handleHierarchyChange(level, value)}
-                        placeholder={`Select ${levelLabel}...`}
-                    />
-                </div>
-            );
-            
-            if (!selectedHierarchyIds[level]) break;
-            parentId = selectedHierarchyIds[level];
-            level++;
+    
+            if (children.length > 0) {
+                const childType = children[0].type;
+                const levelLabel = labels[childType] || childType;
+    
+                slicers.push(
+                    // The key is tied to the parentId to ensure React creates a new
+                    // component instance when the parent changes, resetting any internal state.
+                    <div key={`slicer-for-${parentId}`}>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{levelLabel}</label>
+                        <SearchableSelect
+                            options={children.map(p => ({ value: p.id, label: p.name }))}
+                            value={selectedHierarchyIds[i + 1] || null}
+                            onChange={(value) => handleHierarchyChange(i + 1, value)}
+                            placeholder={`Select ${levelLabel}...`}
+                        />
+                    </div>
+                );
+            }
         }
     
         return slicers;

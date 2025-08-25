@@ -1,10 +1,12 @@
 
+
 import React, { useMemo, useState } from 'react';
 import { ManpowerRecord, ProgressRecord, Project, Theme } from '../types';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler, ChartDataset, ChartOptions } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-ChartJS.register(CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler);
+ChartJS.register(CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler, ChartDataLabels);
 
 interface ProductivityDashboardProps {
     records: ManpowerRecord[];
@@ -132,6 +134,9 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
                 tooltip: {
                     mode: 'index' as const,
                     intersect: false,
+                },
+                datalabels: {
+                    display: false,
                 }
             },
             scales: {

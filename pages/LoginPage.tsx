@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo } from 'react';
 import { EyeIcon } from '../components/icons/EyeIcon';
 import { EyeSlashIcon } from '../components/icons/EyeSlashIcon';
@@ -10,7 +8,7 @@ import { useStore } from '../store/appStore';
 const PasswordCriteria: React.FC<{ password: string, onValidationChange: (isValid: boolean) => void }> = ({ password, onValidationChange }) => {
     const criteria = useMemo(() => ([
         { label: 'At least 8 characters', valid: password.length >= 8 },
-        { label: 'Starts with a letter', valid: /^[a-zA-Z]/.test(password) || password.length === 0 },
+        { label: 'Starts with a letter', valid: /^[a-zA-Z]/.test(password) },
         { label: 'Contains an uppercase letter', valid: /[A-Z]/.test(password) },
         { label: 'Contains a number', valid: /\d/.test(password) },
         { label: 'Contains a special character', valid: /[!@#$%^&*(),.?":{}|<>]/.test(password) },
@@ -19,8 +17,6 @@ const PasswordCriteria: React.FC<{ password: string, onValidationChange: (isVali
     React.useEffect(() => {
         onValidationChange(criteria.every(c => c.valid));
     }, [criteria, onValidationChange]);
-
-    if (!password) return null;
 
     return (
         <ul className="space-y-1 text-xs text-slate-300">
@@ -80,10 +76,12 @@ const LoginPage: React.FC = () => {
         setIsLoading(true);
         const success = await forgotPasswordRequest(emailOrEmpId);
         if (success) {
-            setMessage('If an account exists, a reset code has been sent. For this demo, the code is 123456.');
+            setMessage('If an account with that identifier exists, a password reset code has been sent to the associated email address.');
             setMode('reset');
         } else {
-            setError('If an account exists, a reset code has been sent.'); // Generic message for security
+            // For security, show the same message even if the user doesn't exist.
+            setMessage('If an account with that identifier exists, a password reset code has been sent to the associated email address.');
+            setMode('reset');
         }
         setIsLoading(false);
     };
@@ -127,7 +125,7 @@ const LoginPage: React.FC = () => {
                         id="emailOrEmpId" name="emailOrEmpId" type="text" required
                         value={emailOrEmpId} onChange={(e) => setEmailOrEmpId(e.target.value)}
                         className={inputClass}
-                        placeholder="Username"
+                        placeholder="Username, Email, or Employee ID"
                     />
                 </div>
                 <div className={inputWrapperClass}>
@@ -160,13 +158,13 @@ const LoginPage: React.FC = () => {
     
     const renderForgot = () => (
         <form className="mt-8 space-y-6" onSubmit={handleForgotSubmit}>
-            <p className="text-sm text-center text-slate-300">Enter your email or employee ID to receive a password reset code.</p>
+            <p className="text-sm text-center text-slate-300">Enter your Username, Email, or Employee ID to receive a password reset code.</p>
             <div className={inputWrapperClass}>
                 <input
                     id="emailOrEmpId" name="emailOrEmpId" type="text" required
                     value={emailOrEmpId} onChange={(e) => setEmailOrEmpId(e.target.value)}
                     className={inputClass}
-                    placeholder="Email or Employee ID"
+                    placeholder="Username, Email, or Employee ID"
                 />
             </div>
              <div>
@@ -235,7 +233,7 @@ const LoginPage: React.FC = () => {
         >
             <div className="w-full max-w-md p-8 space-y-3 bg-black/40 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20">
                 <div className="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-[#28a745]" fill="currentColor" viewBox="0 0 64 64">
+                    <svg xmlns="http://www.w.org/2000/svg" className="mx-auto h-12 w-12 text-[#28a745]" fill="currentColor" viewBox="0 0 64 64">
                         <path d="M37.36 32L24 20.33v23.34L37.36 32z"/>
                         <path d="M50.64 32L37.28 20.33v23.34L50.64 32z"/>
                     </svg>

@@ -20,45 +20,70 @@
     </script>
     <style>
       @media print {
-        /* ==== Generic Resets ==== */
-        html, body, #root {
+        /* ==== Hide UI elements ==== */
+        header, aside, .no-print {
+            display: none !important;
+        }
+        .print-only {
+            display: block !important;
+        }
+
+        /* ==== Page Setup ==== */
+        @page {
+            size: A3 landscape;
+            margin: 1cm;
+        }
+
+        /* ==== CORE LAYOUT FIX: The Nuclear Option ==== */
+        /* The root cause of clipping is the flexbox/scrolling layout.
+           These rules aggressively reset the entire app to a simple, static
+           document flow, ONLY for printing. */
+        body, #root, div {
+            /* Reset all containers to be simple blocks */
+            display: block !important; 
+            position: static !important;
+            
+            /* Remove all height constraints */
             height: auto !important;
+            min-height: unset !important;
+            max-height: unset !important;
+            
+            /* Allow content to overflow visibly, preventing clipping */
             overflow: visible !important;
-            width: 100%;
+            
+            /* CRITICAL: Kill any flexbox behavior */
+            flex: unset !important;
+            float: none !important;
+        }
+        
+        main {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* Override Tailwind's fixed height utility classes */
+        .h-96, .h-80, .h-\[60vh\] {
+            height: auto !important;
+        }
+        
+        /* Let the canvas resize freely */
+        canvas {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+
+        /* ==== General Styling for Print ==== */
+        html, body {
             background-color: white !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            font-size: 10pt;
         }
         *, *::before, *::after {
           box-shadow: none !important;
           text-shadow: none !important;
           border-color: #dee2e6 !important;
-        }
-
-        /* ==== Layout Overrides ==== */
-        .no-print, header, aside {
-          display: none !important;
-        }
-        .print-only {
-          display: block !important;
-        }
-        main {
-          padding: 0 !important;
-          margin: 0 !important;
-          overflow: visible !important;
-          height: auto !important;
-          max-height: none !important;
-          display: block !important;
-        }
-
-        /* ==== Component-specific Overrides ==== */
-        /* Broad rule to override Tailwind's fixed heights (e.g., h-96, h-[60vh]) on chart/panel containers */
-        .bg-white, .dark\:bg-slate-800 {
-          height: auto !important;
-        }
-        canvas {
-          max-width: 100% !important;
-          height: auto !important;
+          transition: none !important;
         }
 
         /* ==== Dark Mode Print Fixes ==== */
@@ -96,10 +121,6 @@
         .print-break-inside-avoid {
             page-break-inside: avoid;
         }
-        @page {
-          size: A3 landscape;
-          margin: 1cm;
-        }
       }
       .print-only {
         display: none;
@@ -113,6 +134,7 @@
     "react": "https://esm.sh/react@18.2.0",
     "chart.js": "https://esm.sh/chart.js@4.4.3",
     "react-chartjs-2": "https://esm.sh/react-chartjs-2@5.2.0?external=react,chart.js",
+    "chartjs-plugin-datalabels": "https://esm.sh/chartjs-plugin-datalabels@2.2.0",
     "xlsx": "https://esm.sh/xlsx@0.18.5",
     "zustand": "https://esm.sh/zustand@4.5.2?external=react",
     "zustand/shallow": "https://esm.sh/zustand@4.5.2/shallow?external=react",

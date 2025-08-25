@@ -29,15 +29,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           currentUser={currentUser}
         />
       </aside>
+
       <div className="flex-1 flex flex-col transition-all duration-300 min-w-0 print:block">
         <header className="no-print">
-          <Header 
-            toggleSidebar={toggleSidebar}
-            theme={theme}
-            setTheme={setTheme}
-            currentUser={currentUser}
-            onLogout={logout}
-          />
+            <Header 
+                toggleSidebar={toggleSidebar}
+                theme={theme}
+                setTheme={setTheme}
+                currentUser={currentUser}
+                onLogout={logout}
+            />
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto print:p-0 print:m-0 print:overflow-visible">
           {children}

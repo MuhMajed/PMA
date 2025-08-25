@@ -1,8 +1,10 @@
 
+
 import React, { useMemo, useRef } from 'react';
 import { ManpowerRecord, Subcontractor, Project, Employee, Shift, EmployeeType, Theme } from '../types';
 import { Pie, Bar, getElementAtEvent } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler, ChartOptions } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { UsersIcon } from './icons/UsersIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
@@ -10,7 +12,7 @@ import { UsersGroupIcon } from './icons/UsersGroupIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler, ChartDataLabels);
 
 export type CrossFilters = {
     subcontractor: string | null;
@@ -78,6 +80,9 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
     totalEmployees, todaysHeadcount, avgDailyManpower, crossFilters, setCrossFilters,
     dateRange, showEmptyDays
 }) => {
+    const subcontractorChartRef = useRef<ChartJS<'bar'>>(null);
+    const shiftChartRef = useRef<ChartJS<'pie'>>(null);
+    const typeChartRef = useRef<ChartJS<'pie'>>(null);
     
     const employeeTypeMap = useMemo(() => new Map(employees.map(e => [e.empId, e.type])), [employees]);
 
@@ -227,33 +232,6 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
 
     const hasActiveFilters = Object.values(crossFilters).some(f => f !== null);
 
-    // Chart Refs
-    const subcontractorChartRef = useRef<ChartJS<'bar'>>(null);
-    const shiftChartRef = useRef<ChartJS<'pie'>>(null);
-    const typeChartRef = useRef<ChartJS<'pie'>>(null);
-
-    // Generic click handler using getElementAtEvent
-    const handleChartClick = (
-        event: React.MouseEvent<HTMLCanvasElement>,
-        chartRef: React.RefObject<ChartJS<any>>,
-        chartData: any,
-        filterKey: keyof CrossFilters
-    ) => {
-        const chart = chartRef.current;
-        if (!chart) return;
-        const elements = getElementAtEvent(chart, event);
-        if (elements.length > 0) {
-            const { index } = elements[0];
-            const label = chartData.labels[index];
-            if (label) {
-                 setCrossFilters(prev => {
-                    const currentValue = prev[filterKey];
-                    return { ...prev, [filterKey]: currentValue === label ? null : label };
-                });
-            }
-        }
-    };
-    
     // Memoized Chart Options
     const legendColor = theme === 'dark' ? '#cbd5e1' : '#475569';
     const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
@@ -265,7 +243,8 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         maintainAspectRatio: false,
         plugins: {
             legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
-            title: { display: true, text: 'Manpower Histogram', color: legendColor, font: { size: 16 } }
+            title: { display: true, text: 'Manpower Histogram', color: legendColor, font: { size: 16 } },
+            datalabels: { display: false },
         },
         scales: {
             x: { 
@@ -294,7 +273,8 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         maintainAspectRatio: false,
         plugins: {
             legend: { display: false },
-            title: { display: true, text: 'Subcontractor Distribution', color: legendColor, font: { size: 16 } }
+            title: { display: true, text: 'Subcontractor Distribution', color: legendColor, font: { size: 16 } },
+            datalabels: { display: false },
         },
         scales: {
             x: { ticks: { color: legendColor }, grid: { color: gridColor } },
@@ -302,25 +282,84 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         }
     }), [theme, legendColor, gridColor]);
     
+    const pieChartDatalabelsConfig = useMemo(() => ({
+        display: false,
+        color: '#fff',
+        font: { weight: 'bold' as const, size: 12 },
+        formatter: (value: number, context: any) => {
+            const total = context.chart.data.datasets[0].data.reduce((a: number, b: number) => a + b, 0);
+            if (total === 0) return '0%';
+            const percentage = (value / total * 100);
+            return percentage > 5 ? percentage.toFixed(0) + '%' : '';
+        },
+    }), []);
+
     const shiftChartOptions: ChartOptions<'pie'> = useMemo(() => ({
         animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'bottom' as const, labels: { color: legendColor } },
-            title: { display: true, text: 'Shift Distribution', color: legendColor, font: { size: 16 } }
+            legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
+            title: { display: true, text: 'Shift Distribution', color: legendColor, font: { size: 16 } },
+            datalabels: pieChartDatalabelsConfig,
         }
-    }), [theme, legendColor]);
-    
+    }), [theme, legendColor, pieChartDatalabelsConfig]);
+
     const typeChartOptions: ChartOptions<'pie'> = useMemo(() => ({
         animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'bottom' as const, labels: { color: legendColor } },
-            title: { display: true, text: 'Manpower Type Distribution', color: legendColor, font: { size: 16 } }
+            legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
+            title: { display: true, text: 'Manpower Type Distribution', color: legendColor, font: { size: 16 } },
+            datalabels: pieChartDatalabelsConfig,
         }
-    }), [theme, legendColor]);
+    }), [theme, legendColor, pieChartDatalabelsConfig]);
+
+    const handleSubcontractorClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!subcontractorChartRef.current) return;
+        const elements = getElementAtEvent(subcontractorChartRef.current, event);
+        if (elements.length > 0) {
+            const { index } = elements[0];
+            const label = subcontractorChartData.labels?.[index] as string;
+            if (label) {
+                setCrossFilters(prev => ({
+                    ...prev,
+                    subcontractor: prev.subcontractor === label ? null : label,
+                }));
+            }
+        }
+    };
+
+    const handleShiftClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!shiftChartRef.current) return;
+        const elements = getElementAtEvent(shiftChartRef.current, event);
+        if (elements.length > 0) {
+            const { index } = elements[0];
+            const label = shiftChartData.labels?.[index] as Shift;
+            if (label) {
+                setCrossFilters(prev => ({
+                    ...prev,
+                    shift: prev.shift === label ? null : label,
+                }));
+            }
+        }
+    };
+
+    const handleTypeClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!typeChartRef.current) return;
+        const elements = getElementAtEvent(typeChartRef.current, event);
+        if (elements.length > 0) {
+            const { index } = elements[0];
+            const label = typeChartData.labels?.[index] as EmployeeType | 'Unknown';
+            if (label) {
+                setCrossFilters(prev => ({
+                    ...prev,
+                    type: prev.type === label ? null : label,
+                }));
+            }
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -354,9 +393,9 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print-break-inside-avoid">
                             <Bar 
                                 ref={subcontractorChartRef}
+                                onClick={handleSubcontractorClick}
                                 data={subcontractorChartData} 
                                 options={subcontractorChartOptions}
-                                onClick={(event) => handleChartClick(event, subcontractorChartRef, subcontractorChartData, 'subcontractor')}
                             />
                         </div>
                     </div>
@@ -364,17 +403,17 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print-break-inside-avoid">
                             <Pie 
                                 ref={shiftChartRef}
+                                onClick={handleShiftClick}
                                 data={shiftChartData} 
                                 options={shiftChartOptions}
-                                onClick={(event) => handleChartClick(event, shiftChartRef, shiftChartData, 'shift')}
                             />
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print-break-inside-avoid">
                            <Pie
                                 ref={typeChartRef}
+                                onClick={handleTypeClick}
                                 data={typeChartData}
                                 options={typeChartOptions}
-                                onClick={(event) => handleChartClick(event, typeChartRef, typeChartData, 'type')}
                             />
                         </div>
                     </div>

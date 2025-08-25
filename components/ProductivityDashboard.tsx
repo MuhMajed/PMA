@@ -164,7 +164,7 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
     }, [theme]);
 
     return (
-        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-[60vh] flex flex-col print-break-inside-avoid">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-[60vh] flex flex-col print-break-inside-avoid print-chart-container">
             {activities.length === 1 && (
                 <div className="flex justify-end items-center space-x-4 pb-2 -mt-2 no-print">
                     <label className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">

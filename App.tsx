@@ -34,31 +34,35 @@ const App: React.FC = () => {
 
   // Global handler for printing charts safely
   useEffect(() => {
-    const originalLegendOnClick = ChartJS.defaults.plugins.legend.onClick;
+    const originalLegendOnClick = ChartJS.defaults.plugins?.legend?.onClick;
     const originalOnClick = ChartJS.defaults.onClick;
     const originalOnHover = ChartJS.defaults.onHover;
     const originalAnimation = ChartJS.defaults.animation;
-    const originalDatalabelsDisplay = ChartJS.defaults.plugins.datalabels?.display;
+    const originalDatalabelsDisplay = ChartJS.defaults.plugins?.datalabels?.display;
 
     const handleBeforePrint = () => {
         // Disable all interactions and animations
-        ChartJS.defaults.plugins.legend.onClick = () => {};
+        if (ChartJS.defaults.plugins?.legend) {
+            ChartJS.defaults.plugins.legend.onClick = () => {};
+        }
         ChartJS.defaults.onClick = () => {};
         ChartJS.defaults.onHover = () => {};
         ChartJS.defaults.animation = false;
         // Show datalabels for printing
-        if (ChartJS.defaults.plugins.datalabels) {
+        if (ChartJS.defaults.plugins?.datalabels) {
             ChartJS.defaults.plugins.datalabels.display = true;
         }
     };
 
     const handleAfterPrint = () => {
         // Restore original defaults
-        ChartJS.defaults.plugins.legend.onClick = originalLegendOnClick;
+        if (ChartJS.defaults.plugins?.legend) {
+            ChartJS.defaults.plugins.legend.onClick = originalLegendOnClick;
+        }
         ChartJS.defaults.onClick = originalOnClick;
         ChartJS.defaults.onHover = originalOnHover;
         ChartJS.defaults.animation = originalAnimation;
-        if (ChartJS.defaults.plugins.datalabels) {
+        if (ChartJS.defaults.plugins?.datalabels) {
             ChartJS.defaults.plugins.datalabels.display = originalDatalabelsDisplay;
         }
     };

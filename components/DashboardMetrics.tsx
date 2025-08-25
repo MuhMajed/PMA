@@ -398,10 +398,10 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                         </div>
                     )}
                     <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-2 gap-6">
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print-break-inside-avoid">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print-break-inside-avoid print-chart-container">
                             <Bar data={trendChartData} options={trendChartOptions} />
                         </div>
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print-break-inside-avoid">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-96 print-break-inside-avoid print-chart-container">
                             <Bar 
                                 ref={subcontractorChartRef}
                                 onClick={handleSubcontractorClick}
@@ -411,7 +411,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print-break-inside-avoid">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print-break-inside-avoid print-chart-container">
                             <Pie 
                                 ref={shiftChartRef}
                                 onClick={handleShiftClick}
@@ -419,7 +419,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                                 options={shiftChartOptions}
                             />
                         </div>
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print-break-inside-avoid">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm h-80 print-break-inside-avoid print-chart-container">
                            <Pie
                                 ref={typeChartRef}
                                 onClick={handleTypeClick}

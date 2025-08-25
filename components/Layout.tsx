@@ -3,6 +3,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import { useStore } from '../store/appStore';
 
+
 interface LayoutProps {
   children: React.ReactNode;
 }

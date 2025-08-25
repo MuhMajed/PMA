@@ -1,6 +1,4 @@
-
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ManpowerRecord, ProgressRecord, Project, Theme } from '../types';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, PointElement, LineElement, Filler, ChartDataset, ChartOptions } from 'chart.js';
@@ -117,7 +115,6 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
         const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
 
         return {
-            animation: false,
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -137,6 +134,14 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
                 },
                 datalabels: {
                     display: false,
+                    align: 'top',
+                    backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)',
+                    borderRadius: 4,
+                    color: theme === 'dark' ? 'white' : 'black',
+                    font: {
+                        size: 10,
+                    },
+                    formatter: (value: number | null) => value !== null ? value.toFixed(2) : '',
                 }
             },
             scales: {
@@ -154,7 +159,7 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
                         color: legendColor,
                     }
                 }
-            }
+            },
         };
     }, [theme]);
 

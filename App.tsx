@@ -15,6 +15,7 @@ import LoginPage from './pages/LoginPage';
 import { MessageProvider } from './components/ConfirmationProvider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from './utils/api';
+import { Chart as ChartJS } from 'chart.js';
 
 // === MAIN APP COMPONENT ===
 
@@ -30,6 +31,46 @@ const App: React.FC = () => {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Global handler for printing charts safely
+  useEffect(() => {
+    const originalLegendOnClick = ChartJS.defaults.plugins.legend.onClick;
+    const originalOnClick = ChartJS.defaults.onClick;
+    const originalOnHover = ChartJS.defaults.onHover;
+    const originalAnimation = ChartJS.defaults.animation;
+    const originalDatalabelsDisplay = ChartJS.defaults.plugins.datalabels?.display;
+
+    const handleBeforePrint = () => {
+        // Disable all interactions and animations
+        ChartJS.defaults.plugins.legend.onClick = () => {};
+        ChartJS.defaults.onClick = () => {};
+        ChartJS.defaults.onHover = () => {};
+        ChartJS.defaults.animation = false;
+        // Show datalabels for printing
+        if (ChartJS.defaults.plugins.datalabels) {
+            ChartJS.defaults.plugins.datalabels.display = true;
+        }
+    };
+
+    const handleAfterPrint = () => {
+        // Restore original defaults
+        ChartJS.defaults.plugins.legend.onClick = originalLegendOnClick;
+        ChartJS.defaults.onClick = originalOnClick;
+        ChartJS.defaults.onHover = originalOnHover;
+        ChartJS.defaults.animation = originalAnimation;
+        if (ChartJS.defaults.plugins.datalabels) {
+            ChartJS.defaults.plugins.datalabels.display = originalDatalabelsDisplay;
+        }
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+        window.removeEventListener('beforeprint', handleBeforePrint);
+        window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
 
   useEffect(() => {
     if (currentUser && currentPage.startsWith('settings-') && currentUser.role !== 'Admin') {

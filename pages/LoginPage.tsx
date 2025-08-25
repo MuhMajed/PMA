@@ -19,13 +19,13 @@ const PasswordCriteria: React.FC<{ password: string, onValidationChange: (isVali
     }, [criteria, onValidationChange]);
 
     return (
-        <ul className="space-y-1 text-xs text-slate-300">
+        <ul className="space-y-1 text-xs text-slate-600">
             {criteria.map(item => (
                 <li key={item.label} className="flex items-center">
                     {item.valid ? (
-                        <CheckCircleIcon className="h-4 w-4 text-green-400 mr-2" />
+                        <CheckCircleIcon className="h-4 w-4 text-green-600 mr-2" />
                     ) : (
-                        <XCircleIcon className="h-4 w-4 text-red-400 mr-2" />
+                        <XCircleIcon className="h-4 w-4 text-red-600 mr-2" />
                     )}
                     <span>{item.label}</span>
                 </li>
@@ -56,8 +56,6 @@ const LoginPage: React.FC = () => {
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [isPasswordValid, setIsPasswordValid] = useState(false);
     
-    const backgroundImageUrl = 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=2070&auto=format&fit=crop';
-
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -113,8 +111,8 @@ const LoginPage: React.FC = () => {
         setIsLoading(false);
     };
     
-    const inputWrapperClass = "relative border-b border-slate-600 focus-within:border-[#28a745] transition-colors duration-200";
-    const inputClass = "appearance-none block w-full px-1 py-3 bg-transparent placeholder-slate-300 text-white focus:outline-none sm:text-sm";
+    const inputWrapperClass = "relative border-b border-slate-400 focus-within:border-green-500 transition-colors duration-200";
+    const inputClass = "appearance-none block w-full px-1 py-3 bg-transparent placeholder-slate-500 text-slate-900 focus:outline-none sm:text-sm";
 
 
     const renderLogin = () => (
@@ -135,7 +133,7 @@ const LoginPage: React.FC = () => {
                         className={`${inputClass} pr-10`}
                         placeholder="Password"
                     />
-                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 z-20 pr-3 flex items-center text-slate-400 hover:text-white">
+                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 z-20 pr-3 flex items-center text-slate-500 hover:text-slate-800">
                         <span className="sr-only">Toggle password visibility</span>
                         {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                     </button>
@@ -143,7 +141,7 @@ const LoginPage: React.FC = () => {
             </div>
             <div className="flex items-center justify-end">
                 <div className="text-sm">
-                    <button type="button" onClick={() => { setMode('forgot'); setError(''); setMessage(''); }} className="font-medium text-[#28a745] hover:text-green-400">
+                    <button type="button" onClick={() => { setMode('forgot'); setError(''); setMessage(''); }} className="font-medium text-green-600 hover:text-green-500">
                         Forgot your password?
                     </button>
                 </div>
@@ -158,7 +156,7 @@ const LoginPage: React.FC = () => {
     
     const renderForgot = () => (
         <form className="mt-8 space-y-6" onSubmit={handleForgotSubmit}>
-            <p className="text-sm text-center text-slate-300">Enter your Username, Email, or Employee ID to receive a password reset code.</p>
+            <p className="text-sm text-center text-slate-600">Enter your Username, Email, or Employee ID to receive a password reset code.</p>
             <div className={inputWrapperClass}>
                 <input
                     id="emailOrEmpId" name="emailOrEmpId" type="text" required
@@ -173,7 +171,7 @@ const LoginPage: React.FC = () => {
                 </button>
             </div>
              <div className="text-sm text-center">
-                <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="font-medium text-[#28a745] hover:text-green-400">
+                <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="font-medium text-green-600 hover:text-green-500">
                     Back to Sign In
                 </button>
             </div>
@@ -198,7 +196,7 @@ const LoginPage: React.FC = () => {
                         className={`${inputClass} pr-10`}
                         placeholder="New Password"
                     />
-                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute inset-y-0 right-0 z-20 pr-3 flex items-center text-slate-400 hover:text-white">
+                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute inset-y-0 right-0 z-20 pr-3 flex items-center text-slate-500 hover:text-slate-800">
                         {showNewPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                     </button>
                 </div>
@@ -218,7 +216,7 @@ const LoginPage: React.FC = () => {
                 </button>
             </div>
             <div className="text-sm text-center">
-                <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="font-medium text-[#28a745] hover:text-green-400">
+                <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="font-medium text-green-600 hover:text-green-500">
                     Back to Sign In
                 </button>
             </div>
@@ -227,30 +225,32 @@ const LoginPage: React.FC = () => {
 
 
     return (
-        <div 
-          className="flex items-center justify-center min-h-screen bg-cover bg-center p-4 sm:p-8"
-          style={{ backgroundImage: `url(${backgroundImageUrl})` }}
+        <div
+            className="min-h-screen bg-cover bg-center bg-fixed"
+            style={{ backgroundImage: "url('https://thesaudiboom.com/wp-content/uploads/2024/06/1-Jeddah-Tower_-Everything-to-Know-About-The-Worlds-Tallest-Skyscraper-.png')" }}
         >
-            <div className="w-full max-w-md p-8 space-y-3 bg-black/40 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20">
-                <div className="text-center">
-                    <svg xmlns="http://www.w.org/2000/svg" className="mx-auto h-12 w-12 text-[#28a745]" fill="currentColor" viewBox="0 0 64 64">
-                        <path d="M37.36 32L24 20.33v23.34L37.36 32z"/>
-                        <path d="M50.64 32L37.28 20.33v23.34L50.64 32z"/>
-                    </svg>
-                    <h1 className="text-3xl font-bold text-white mt-4">Productivity Monitoring</h1>
-                    <p className="mt-2 text-sm text-slate-300">
-                        {mode === 'login' && 'Sign in to your account'}
-                        {mode === 'forgot' && 'Reset your password'}
-                        {mode === 'reset' && 'Create a new password'}
-                    </p>
-                </div>
-                
-                {error && <p className="text-sm text-center text-white bg-red-500/50 rounded-md py-2 px-3">{error}</p>}
-                {message && <p className="text-sm text-center text-white bg-green-500/50 rounded-md py-2 px-3">{message}</p>}
+            <div className="min-h-screen flex items-center justify-center sm:justify-end p-4">
+                <div className="w-full max-w-md p-8 space-y-6 bg-white/20 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/30 sm:mr-8 md:mr-16 lg:mr-32">
+                    <div className="text-center">
+                        <svg xmlns="http://www.w.org/2000/svg" className="mx-auto h-12 w-12 text-[#28a745]" fill="currentColor" viewBox="0 0 64 64">
+                            <path d="M37.36 32L24 20.33v23.34L37.36 32z"/>
+                            <path d="M50.64 32L37.28 20.33v23.34L50.64 32z"/>
+                        </svg>
+                        <h1 className="text-3xl font-bold text-slate-800 mt-4">Productivity Monitoring</h1>
+                        <p className="mt-2 text-sm text-slate-600">
+                            {mode === 'login' && 'Sign in to your account'}
+                            {mode === 'forgot' && 'Reset your password'}
+                            {mode === 'reset' && 'Create a new password'}
+                        </p>
+                    </div>
+                    
+                    {error && <p className="text-sm text-center text-red-800 bg-red-100 rounded-md py-2 px-3">{error}</p>}
+                    {message && <p className="text-sm text-center text-green-800 bg-green-100 rounded-md py-2 px-3">{message}</p>}
 
-                {mode === 'login' && renderLogin()}
-                {mode === 'forgot' && renderForgot()}
-                {mode === 'reset' && renderReset()}
+                    {mode === 'login' && renderLogin()}
+                    {mode === 'forgot' && renderForgot()}
+                    {mode === 'reset' && renderReset()}
+                </div>
             </div>
         </div>
     );

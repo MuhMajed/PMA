@@ -1,6 +1,4 @@
-
-
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { ManpowerRecord, Subcontractor, Project, Employee, Shift, EmployeeType, Theme } from '../types';
 import { Pie, Bar, getElementAtEvent } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, Title, PointElement, LineElement, BarElement, Filler, ChartOptions } from 'chart.js';
@@ -237,14 +235,27 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
     const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
     const weekendGridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9';
 
+    const barDataLabelsConfig = {
+        color: theme === 'dark' ? '#fff' : '#334155',
+        anchor: 'end' as const,
+        align: 'end' as const,
+        offset: -4,
+        font: {
+            weight: 'bold' as const,
+        },
+        formatter: (value: number) => value > 0 ? value : '',
+    };
+
     const trendChartOptions: ChartOptions<'bar'> = useMemo(() => ({
-        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
             legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
             title: { display: true, text: 'Manpower Histogram', color: legendColor, font: { size: 16 } },
-            datalabels: { display: false },
+            datalabels: { 
+                display: false,
+                ...barDataLabelsConfig 
+            },
         },
         scales: {
             x: { 
@@ -264,22 +275,24 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
                 stacked: true 
             },
             y: { ticks: { color: legendColor }, grid: { color: gridColor }, beginAtZero: true, stacked: true }
-        }
+        },
     }), [theme, legendColor, gridColor, trendChartData.labels, weekendGridColor]);
 
     const subcontractorChartOptions: ChartOptions<'bar'> = useMemo(() => ({
-        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
             legend: { display: false },
             title: { display: true, text: 'Subcontractor Distribution', color: legendColor, font: { size: 16 } },
-            datalabels: { display: false },
+            datalabels: { 
+                display: false,
+                ...barDataLabelsConfig
+             },
         },
         scales: {
             x: { ticks: { color: legendColor }, grid: { color: gridColor } },
             y: { ticks: { color: legendColor }, grid: { color: gridColor }, beginAtZero: true }
-        }
+        },
     }), [theme, legendColor, gridColor]);
     
     const pieChartDatalabelsConfig = useMemo(() => ({
@@ -295,25 +308,23 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
     }), []);
 
     const shiftChartOptions: ChartOptions<'pie'> = useMemo(() => ({
-        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
             legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
             title: { display: true, text: 'Shift Distribution', color: legendColor, font: { size: 16 } },
             datalabels: pieChartDatalabelsConfig,
-        }
+        },
     }), [theme, legendColor, pieChartDatalabelsConfig]);
 
     const typeChartOptions: ChartOptions<'pie'> = useMemo(() => ({
-        animation: false,
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
             legend: { display: true, position: 'bottom' as const, labels: { color: legendColor } },
             title: { display: true, text: 'Manpower Type Distribution', color: legendColor, font: { size: 16 } },
             datalabels: pieChartDatalabelsConfig,
-        }
+        },
     }), [theme, legendColor, pieChartDatalabelsConfig]);
 
     const handleSubcontractorClick = (event: React.MouseEvent<HTMLCanvasElement>) => {

@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { ManpowerStatus, Shift, Project } from '../types';
+import { ManpowerStatus, Shift, Project, Equipment } from '../types';
 
 export const exportToExcel = (data: any[], fileName: string) => {
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -198,6 +198,31 @@ export const downloadDepartmentsTemplate = () => {
     XLSX.writeFile(workbook, 'Departments_Upload_Template.xlsx');
 };
 
+export const downloadEquipmentTemplate = () => {
+    const headers = ['name', 'type', 'plateNo', 'operatorId', 'status'];
+    const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+    worksheet['!cols'] = headers.map(() => ({ wch: 25 }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+    
+    const notes = [
+        ["Notes & Guidelines"],
+        [],
+        ["Field", "Description", "Example / Valid Options"],
+        ["name", "Required. The unique name/description of the equipment.", "Excavator CAT 320"],
+        ["type", "Required. The general type of equipment.", "Excavator"],
+        ["plateNo", "Required. The unique license plate or serial number.", "EX-001"],
+        ["operatorId", "Required. The Employee ID of the default operator. Must exist in the employee master list.", "EMP001"],
+        ["status", "Required. The current status of the equipment.", "Options: Active, Under Maintenance, Inactive"],
+    ];
+    const notesWorksheet = XLSX.utils.aoa_to_sheet(notes);
+    notesWorksheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+    notesWorksheet['!cols'] = [{ wch: 15 }, { wch: 70 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(workbook, notesWorksheet, 'Notes');
+    workbook.SheetNames = ['Template', 'Notes'];
+
+    XLSX.writeFile(workbook, 'Equipment_Upload_Template.xlsx');
+};
 
 export const exportToBoqExcel = (projects: Project[], fileName: string) => {
     const boqData: any[] = [];

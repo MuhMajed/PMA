@@ -1,6 +1,3 @@
-
-
-
 import React, { useMemo, useCallback, useState } from 'react';
 import { ManpowerRecord, Shift, Project, ProjectNodeType, User } from '../types';
 import { PencilIcon } from './icons/PencilIcon';

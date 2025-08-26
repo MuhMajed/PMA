@@ -1,16 +1,19 @@
+
 import React, { useEffect } from 'react';
 import { useStore } from './store/appStore';
-import { useProjectsForCurrentUser, useManpowerRecordsForCurrentUser, useProgressRecordsForCurrentUser } from './hooks/useData';
+import { useProjectsForCurrentUser, useManpowerRecordsForCurrentUser, useProgressRecordsForCurrentUser, useEquipmentRecordsForCurrentUser } from './hooks/useData';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import ManpowerRecords from './pages/ManpowerRecords';
 import ProgressRecordPage from './pages/ProgressRecord';
+import EquipmentRecordsPage from './pages/EquipmentRecords';
 import SettingsEmployees from './pages/SettingsEmployees';
 import SettingsProjects from './pages/SettingsProjects';
 import SettingsProfessions from './pages/SettingsProfessions';
 import SettingsSubcontractors from './pages/SettingsSubcontractors';
 import SettingsDepartments from './pages/SettingsDepartments';
 import SettingsUsers from './pages/SettingsUsers';
+import SettingsEquipment from './pages/SettingsEquipment';
 import LoginPage from './pages/LoginPage';
 import { MessageProvider } from './components/ConfirmationProvider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,7 +41,8 @@ const App: React.FC = () => {
     const originalOnClick = ChartJS.defaults.onClick;
     const originalOnHover = ChartJS.defaults.onHover;
     const originalAnimation = ChartJS.defaults.animation;
-    const originalDatalabelsDisplay = ChartJS.defaults.plugins?.datalabels?.display;
+    // FIX: Cast plugins to any to access datalabels property which is not in the default Chart.js types.
+    const originalDatalabelsDisplay = (ChartJS.defaults.plugins as any)?.datalabels?.display;
 
     const handleBeforePrint = () => {
         // Disable all interactions and animations
@@ -49,8 +53,10 @@ const App: React.FC = () => {
         ChartJS.defaults.onHover = () => {};
         ChartJS.defaults.animation = false;
         // Show datalabels for printing
-        if (ChartJS.defaults.plugins?.datalabels) {
-            ChartJS.defaults.plugins.datalabels.display = true;
+        // FIX: Cast plugins to any to access datalabels property which is not in the default Chart.js types.
+        if ((ChartJS.defaults.plugins as any)?.datalabels) {
+            // FIX: Cast plugins to any to access datalabels property which is not in the default Chart.js types.
+            (ChartJS.defaults.plugins as any).datalabels.display = true;
         }
     };
 
@@ -62,8 +68,10 @@ const App: React.FC = () => {
         ChartJS.defaults.onClick = originalOnClick;
         ChartJS.defaults.onHover = originalOnHover;
         ChartJS.defaults.animation = originalAnimation;
-        if (ChartJS.defaults.plugins?.datalabels) {
-            ChartJS.defaults.plugins.datalabels.display = originalDatalabelsDisplay;
+        // FIX: Cast plugins to any to access datalabels property which is not in the default Chart.js types.
+        if ((ChartJS.defaults.plugins as any)?.datalabels) {
+            // FIX: Cast plugins to any to access datalabels property which is not in the default Chart.js types.
+            (ChartJS.defaults.plugins as any).datalabels.display = originalDatalabelsDisplay;
         }
     };
 
@@ -89,10 +97,12 @@ const App: React.FC = () => {
   const { data: allProfessions = [] } = useQuery({ queryKey: ['professions'], queryFn: api.fetchProfessions });
   const { data: allDepartments = [] } = useQuery({ queryKey: ['departments'], queryFn: api.fetchDepartments });
   const { data: allScopes = [] } = useQuery({ queryKey: ['scopes'], queryFn: api.fetchScopes });
+  const { data: allEquipment = [] } = useQuery({ queryKey: ['equipment'], queryFn: api.fetchEquipment });
   
   const { projects: allProjectsForUser } = useProjectsForCurrentUser();
   const { records: allManpowerRecordsForUser } = useManpowerRecordsForCurrentUser();
   const { progressRecords: allProgressRecordsForUser } = useProgressRecordsForCurrentUser();
+  const { equipmentRecords: allEquipmentRecordsForUser } = useEquipmentRecordsForCurrentUser();
   
   // Initialize shared project filter once projects are loaded
   useEffect(() => {
@@ -159,6 +169,17 @@ const App: React.FC = () => {
   const updateProgressRecordMutation = createMutation(api.updateProgressRecord, ['progressRecords']);
   const deleteProgressRecordMutation = createMutation(api.deleteProgressRecord, ['progressRecords']);
 
+  // Equipment
+  const addEquipmentMutation = createMutation(api.addEquipment, ['equipment']);
+  const updateEquipmentMutation = createMutation(api.updateEquipment, ['equipment']);
+  const deleteEquipmentMutation = createMutation(api.deleteEquipment, ['equipment']);
+  const setEquipmentMutation = createMutation(api.setEquipment, ['equipment']);
+
+  // Equipment Records
+  const addEquipmentRecordMutation = createMutation(api.addEquipmentRecord, ['equipmentRecords']);
+  const updateEquipmentRecordMutation = createMutation(api.updateEquipmentRecord, ['equipmentRecords']);
+  const deleteEquipmentRecordMutation = createMutation(api.deleteEquipmentRecord, ['equipmentRecords']);
+
   
   const renderPage = () => {
     if (!currentUser) return <LoginPage />;
@@ -183,6 +204,16 @@ const App: React.FC = () => {
         onAddProgress={addProgressRecordMutation.mutate}
         onUpdateProgress={updateProgressRecordMutation.mutate}
         onDeleteProgress={deleteProgressRecordMutation.mutate}
+        currentUser={currentUser}
+      />;
+      case 'equipment-records': return <EquipmentRecordsPage
+        equipment={allEquipment}
+        equipmentRecords={allEquipmentRecordsForUser}
+        projects={allProjectsForUser}
+        employees={allEmployees}
+        onAdd={addEquipmentRecordMutation.mutate}
+        onUpdate={updateEquipmentRecordMutation.mutate}
+        onDelete={deleteEquipmentRecordMutation.mutate}
         currentUser={currentUser}
       />;
       case 'settings-employees': return <SettingsEmployees 
@@ -231,6 +262,16 @@ const App: React.FC = () => {
         onUpdate={updateSubcontractorMutation.mutate}
         onDelete={deleteSubcontractorMutation.mutate}
         onSetSubcontractors={setSubcontractorsMutation.mutate}
+        currentUser={currentUser}
+      />;
+      case 'settings-equipment': return <SettingsEquipment
+        equipment={allEquipment}
+        equipmentRecords={allEquipmentRecordsForUser}
+        employees={allEmployees}
+        onAdd={addEquipmentMutation.mutate}
+        onUpdate={updateEquipmentMutation.mutate}
+        onDelete={deleteEquipmentMutation.mutate}
+        onSetEquipment={setEquipmentMutation.mutate}
         currentUser={currentUser}
       />;
       case 'settings-users': return <SettingsUsers

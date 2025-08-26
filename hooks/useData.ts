@@ -78,3 +78,20 @@ export const useProgressRecordsForCurrentUser = () => {
 
     return { progressRecords: visibleProgressRecords, isLoading, isError };
 };
+
+export const useEquipmentRecordsForCurrentUser = () => {
+    const { data: equipmentRecords = [], isLoading, isError } = useQuery({ queryKey: ['equipmentRecords'], queryFn: api.fetchEquipmentRecords });
+    const { projects: projectsForCurrentUser } = useProjectsForCurrentUser();
+    const currentUser = useStore(state => state.currentUser);
+
+    const visibleEquipmentRecords = useMemo(() => {
+        if (!equipmentRecords) return [];
+        if (!currentUser || currentUser.role === 'Admin' || !currentUser.assignedProjects || currentUser.assignedProjects.length === 0) {
+            return equipmentRecords;
+        }
+        const visibleProjectIds = new Set(projectsForCurrentUser.map(p => p.id));
+        return equipmentRecords.filter(r => visibleProjectIds.has(r.project));
+    }, [currentUser, equipmentRecords, projectsForCurrentUser]);
+
+    return { equipmentRecords: visibleEquipmentRecords, isLoading, isError };
+};

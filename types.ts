@@ -1,5 +1,6 @@
 
 
+
 export enum ManpowerStatus {
   ACTIVE = 'Active',
   IDLE = 'Idle',
@@ -97,6 +98,37 @@ export interface User {
   assignedProjects?: string[];
 }
 
+export interface Equipment {
+  id: string;
+  name: string;
+  type: string;
+  plateNo: string;
+  operatorId: string; // Employee ID
+  status: 'Active' | 'Under Maintenance' | 'Inactive';
+}
+
+export enum EquipmentStatus {
+  WORKING = 'Working',
+  IDLE = 'Idle',
+  BREAKDOWN = 'Breakdown',
+}
+
+export interface EquipmentRecord {
+  id: string;
+  equipmentId: string;
+  date: string;
+  project: string;
+  status: EquipmentStatus;
+  hoursWorked?: number;
+  shift: Shift;
+  remarks?: string;
+  operatorId?: string; // Daily operator can be different
+  createdBy?: string;
+  modifiedDate?: string; // YYYY-MM-DD
+  modifiedBy?: string;
+}
+
+
 export type Profession = string;
 export type Department = string;
 
@@ -104,11 +136,13 @@ export type Page =
   | 'dashboard'
   | 'manpower-records'
   | 'progress-record'
+  | 'equipment-records'
   | 'settings-employees'
   | 'settings-projects'
   | 'settings-professions'
   | 'settings-departments'
   | 'settings-subcontractors'
-  | 'settings-users';
+  | 'settings-users'
+  | 'settings-equipment';
   
 export type Theme = 'light' | 'dark';

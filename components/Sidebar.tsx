@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { Page, User } from '../types';
 import { useProjectsForCurrentUser } from '../hooks/useData';
@@ -14,6 +12,7 @@ import { ChartBarIcon } from './icons/ChartBarIcon';
 import { UsersGroupIcon } from './icons/UsersGroupIcon';
 import { UsersIcon } from './icons/UsersIcon';
 import { TagIcon } from './icons/TagIcon';
+import { TruckIcon } from './icons/TruckIcon';
 
 
 interface SidebarProps {
@@ -80,6 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentPage, setCurrentPage, 
                             <ul className="space-y-2">
                                 <NavLink page="manpower-records" label="Manpower Records" icon={<UsersGroupIcon className="w-5 h-5" />} isCurrent={currentPage === 'manpower-records'} onClick={setCurrentPage} isSubLink />
                                 <NavLink page="progress-record" label="Progress Record" icon={<ChartBarIcon className="w-5 h-5" />} isCurrent={currentPage === 'progress-record'} onClick={setCurrentPage} isSubLink />
+                                <NavLink page="equipment-records" label="Equipment Records" icon={<TruckIcon className="w-5 h-5" />} isCurrent={currentPage === 'equipment-records'} onClick={setCurrentPage} isSubLink />
                             </ul>
                         </>
                     )}
@@ -95,6 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentPage, setCurrentPage, 
                             <ul className="space-y-2">
                                 <NavLink page="settings-employees" label="Employees" icon={<UserCircleIcon className="w-5 h-5" />} isCurrent={currentPage === 'settings-employees'} onClick={setCurrentPage} isSubLink />
                                 <NavLink page="settings-subcontractors" label="Subcontractors" icon={<BuildingOfficeIcon className="w-5 h-5" />} isCurrent={currentPage === 'settings-subcontractors'} onClick={setCurrentPage} isSubLink />
+                                <NavLink page="settings-equipment" label="Equipment" icon={<TruckIcon className="w-5 h-5" />} isCurrent={currentPage === 'settings-equipment'} onClick={setCurrentPage} isSubLink />
                                 <NavLink page="settings-departments" label="Departments" icon={<TagIcon className="w-5 h-5" />} isCurrent={currentPage === 'settings-departments'} onClick={setCurrentPage} isSubLink />
                                 <NavLink page="settings-professions" label="Professions" icon={<BriefcaseIcon className="w-5 h-5" />} isCurrent={currentPage === 'settings-professions'} onClick={setCurrentPage} isSubLink />
                                 <NavLink page="settings-projects" label="Projects" icon={<BuildingIcon className="w-5 h-5" />} isCurrent={currentPage === 'settings-projects'} onClick={setCurrentPage} isSubLink />

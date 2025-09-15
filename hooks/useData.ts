@@ -95,3 +95,20 @@ export const useEquipmentRecordsForCurrentUser = () => {
 
     return { equipmentRecords: visibleEquipmentRecords, isLoading, isError };
 };
+
+export const useSafetyViolationsForCurrentUser = () => {
+    const { data: violations = [], isLoading, isError } = useQuery({ queryKey: ['safetyViolations'], queryFn: api.fetchSafetyViolations });
+    const { projects: projectsForCurrentUser } = useProjectsForCurrentUser();
+    const currentUser = useStore(state => state.currentUser);
+
+    const visibleViolations = useMemo(() => {
+        if (!violations) return [];
+        if (!currentUser || currentUser.role === 'Admin' || !currentUser.assignedProjects || currentUser.assignedProjects.length === 0) {
+            return violations;
+        }
+        const visibleProjectIds = new Set(projectsForCurrentUser.map(p => p.id));
+        return violations.filter(v => visibleProjectIds.has(v.projectId));
+    }, [currentUser, violations, projectsForCurrentUser]);
+
+    return { violations: visibleViolations, isLoading, isError };
+};

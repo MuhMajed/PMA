@@ -1,6 +1,3 @@
-
-
-
 export enum ManpowerStatus {
   ACTIVE = 'Active',
   IDLE = 'Idle',
@@ -37,12 +34,12 @@ export interface Project {
   name: string;
   parentId: string | null;
   type: ProjectNodeType;
-  uom?: string; // Unit of Measurement
   totalQty?: number; // Total planned quantity for activities
-  universalNorm?: number; // Universal Norm in uom / Man-hour
-  companyNorm?: number; // Company Norm in uom / Man-hour
-  rate?: number; // Rate per uom for BOQ
   hierarchyLabels?: Partial<Record<ProjectNodeType, string>>; // For root projects
+  // FIX: Add optional uom, rate, and currency for activities.
+  uom?: string;
+  rate?: number;
+  currency?: string;
 }
 
 export type EmployeeType = 'Direct' | 'Indirect';
@@ -79,13 +76,15 @@ export interface Subcontractor {
 export interface ProgressRecord {
   id: string;
   activityId: string;
+  activityGroupId: string;
   date: string; // YYYY-MM-DD
-  qty: number; // Represents daily progress quantity
+  // This now represents the CUMULATIVE quantity for the activity up to this specific record's date/shift.
+  qty: number; 
   manualPercentage?: number; // Optional user-defined cumulative percentage
   shift?: Shift;
 }
 
-export type UserRole = 'Admin' | 'Project Manager' | 'Data Entry';
+export type UserRole = 'Admin' | 'Project Manager' | 'Data Entry' | 'Safety';
 
 export interface User {
   id: string;
@@ -128,6 +127,42 @@ export interface EquipmentRecord {
   modifiedBy?: string;
 }
 
+export type ViolationType =
+  | 'No Helmet'
+  | 'No Safety Vest'
+  | 'Unsafe Scaffolding'
+  | 'No Harness'
+  | 'Improper Use of Tools'
+  | 'Electrical Hazard'
+  | 'Other';
+
+export interface SafetyViolation {
+  id: string;
+  date: string; // YYYY-MM-DD
+  projectId: string; // an activity or level id
+  subcontractor: string;
+  empId?: string; // Optional employee ID
+  violationType: ViolationType;
+  description: string;
+  actionTaken: string;
+  photo?: string; // Base64 encoded image string
+  createdBy?: string;
+}
+
+export interface ActivityGroup {
+  id: string;
+  name: string;
+  uom: string;
+  universalNorm: number;
+  companyNorm?: number;
+  rate?: number;
+}
+
+export interface ActivityGroupMapping {
+  activityId: string;
+  activityGroupId: string;
+}
+
 
 export type Profession = string;
 export type Department = string;
@@ -137,12 +172,14 @@ export type Page =
   | 'manpower-records'
   | 'progress-record'
   | 'equipment-records'
+  | 'safety-violations'
   | 'settings-employees'
   | 'settings-projects'
   | 'settings-professions'
   | 'settings-departments'
   | 'settings-subcontractors'
   | 'settings-users'
-  | 'settings-equipment';
+  | 'settings-equipment'
+  | 'settings-activity-groups';
   
 export type Theme = 'light' | 'dark';

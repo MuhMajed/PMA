@@ -1,6 +1,6 @@
 import {
     Project, ManpowerRecord, Employee, Subcontractor, User, ProgressRecord,
-    Profession, Department, Equipment, EquipmentRecord
+    Profession, Department, Equipment, EquipmentRecord, SafetyViolation, ActivityGroup, ActivityGroupMapping
 } from '../types';
 import { db } from '../data';
 
@@ -23,6 +23,10 @@ export const fetchUsers = async (): Promise<User[]> => { await delay(100); retur
 export const fetchScopes = async (): Promise<string[]> => { await delay(100); return [...db.scopes]; };
 export const fetchEquipment = async (): Promise<Equipment[]> => { await delay(100); return [...db.equipment]; };
 export const fetchEquipmentRecords = async (): Promise<EquipmentRecord[]> => { await delay(100); return [...db.equipmentRecords]; };
+export const fetchSafetyViolations = async (): Promise<SafetyViolation[]> => { await delay(100); return [...db.safetyViolations]; };
+export const fetchActivityGroups = async (): Promise<ActivityGroup[]> => { await delay(100); return [...db.activityGroups]; };
+export const fetchActivityGroupMappings = async (): Promise<ActivityGroupMapping[]> => { await delay(100); return [...db.activityGroupMappings]; };
+
 
 // ===================================
 // WRITE OPERATIONS (Mutations)
@@ -205,12 +209,24 @@ export const setDepartments = async (newDepartments: string[]): Promise<string[]
 // --- Progress Records ---
 export const addProgressRecord = async (record: Omit<ProgressRecord, 'id'>): Promise<ProgressRecord> => {
     await delay(200);
+    const existing = db.progressRecords.find(
+        r => r.activityId === record.activityId && r.date === record.date && r.shift === record.shift
+    );
+    if (existing) {
+        throw new Error(`A progress record for this activity, date, and shift already exists.`);
+    }
     const newRecord: ProgressRecord = { ...record, id: generateId('pr') };
     db.progressRecords.push(newRecord);
     return newRecord;
 };
 export const updateProgressRecord = async (record: ProgressRecord): Promise<ProgressRecord> => {
     await delay(200);
+    const existing = db.progressRecords.find(
+        r => r.activityId === record.activityId && r.date === record.date && r.shift === record.shift && r.id !== record.id
+    );
+    if (existing) {
+        throw new Error(`Updating this record would create a duplicate for this activity, date, and shift.`);
+    }
     const index = db.progressRecords.findIndex(r => r.id === record.id);
     if (index !== -1) db.progressRecords[index] = record;
     return record;
@@ -288,6 +304,58 @@ export const deleteEquipmentRecord = async (id: string): Promise<string> => {
     db.equipmentRecords = db.equipmentRecords.filter(r => r.id !== id);
     return id;
 };
+
+// --- Safety Violations ---
+export const addSafetyViolation = async (violation: Omit<SafetyViolation, 'id'>): Promise<SafetyViolation> => {
+    await delay(200);
+    const newViolation: SafetyViolation = { ...violation, id: generateId('sv') };
+    db.safetyViolations.push(newViolation);
+    return newViolation;
+};
+export const updateSafetyViolation = async (violation: SafetyViolation): Promise<SafetyViolation> => {
+    await delay(200);
+    const index = db.safetyViolations.findIndex(v => v.id === violation.id);
+    if (index !== -1) db.safetyViolations[index] = violation;
+    return violation;
+};
+export const deleteSafetyViolation = async (id: string): Promise<string> => {
+    await delay(200);
+    db.safetyViolations = db.safetyViolations.filter(v => v.id !== id);
+    return id;
+};
+
+// --- Activity Groups ---
+export const addActivityGroup = async (group: Omit<ActivityGroup, 'id'>): Promise<ActivityGroup> => {
+    await delay(200);
+    const newGroup: ActivityGroup = { ...group, id: generateId('group') };
+    db.activityGroups.push(newGroup);
+    return newGroup;
+};
+export const updateActivityGroup = async (group: ActivityGroup): Promise<ActivityGroup> => {
+    await delay(200);
+    const index = db.activityGroups.findIndex(g => g.id === group.id);
+    if (index !== -1) db.activityGroups[index] = group;
+    return group;
+};
+export const deleteActivityGroup = async (id: string): Promise<string> => {
+    await delay(200);
+    db.activityGroups = db.activityGroups.filter(g => g.id !== id);
+    // Also remove any mappings
+    db.activityGroupMappings = db.activityGroupMappings.filter(m => m.activityGroupId !== id);
+    return id;
+};
+
+// --- Activity Group Mappings ---
+export const setActivityGroupMappings = async (groupId: string, activityIds: string[]): Promise<ActivityGroupMapping[]> => {
+    await delay(200);
+    // Remove existing mappings for this group
+    db.activityGroupMappings = db.activityGroupMappings.filter(m => m.activityGroupId !== groupId);
+    // Add new mappings
+    const newMappings = activityIds.map(activityId => ({ activityGroupId: groupId, activityId }));
+    db.activityGroupMappings.push(...newMappings);
+    return newMappings;
+};
+
 
 // --- Authentication ---
 export const findUserForLogin = async ({ emailOrEmpId, password }: { emailOrEmpId: string, password: string }): Promise<User | null> => {

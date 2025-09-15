@@ -236,11 +236,12 @@ export const exportToBoqExcel = (projects: Project[], fileName: string) => {
         boqData.push({
             'Item No.': itemNumber,
             'Description': project.name,
-            'Unit': isActivity ? project.uom || '' : '',
+            // FIX: Cast project to any to access optional properties that only exist on 'Activity' types.
+            'Unit': isActivity ? (project as any).uom || '' : '',
             'Quantity': isActivity ? project.totalQty ?? '' : '',
-            'Rate': isActivity ? project.rate ?? '' : '',
-            'Amount': isActivity && typeof project.totalQty === 'number' && typeof project.rate === 'number' 
-                ? project.totalQty * project.rate 
+            'Rate': isActivity ? (project as any).rate ?? '' : '',
+            'Amount': isActivity && typeof project.totalQty === 'number' && typeof (project as any).rate === 'number' 
+                ? project.totalQty * (project as any).rate 
                 : ''
         });
 

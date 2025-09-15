@@ -1,14 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../store/appStore';
-import { useManpowerRecordsForCurrentUser, useProjectsForCurrentUser, useProgressRecordsForCurrentUser } from '../hooks/useData';
-import DashboardMetrics, { CrossFilters } from '../components/DashboardMetrics';
+import { useManpowerRecordsForCurrentUser, useProjectsForCurrentUser, useProgressRecordsForCurrentUser, useSafetyViolationsForCurrentUser, useEquipmentRecordsForCurrentUser } from '../hooks/useData';
+import DashboardMetrics from '../components/DashboardMetrics';
 import ProductivityDashboard from '../components/ProductivityDashboard';
+import SafetyDashboard from '../components/SafetyDashboard';
+import EquipmentDashboard from '../components/EquipmentDashboard';
 import PageHeader from '../components/ui/PageHeader';
 import { ProjectMultiSelectFilter } from '../components/ProjectMultiSelectFilter';
-import { Project } from '../types';
+import { ActivityGroupMultiSelectFilter } from '../components/ActivityGroupMultiSelectFilter';
+import { Project, Shift, EmployeeType, ViolationType, EquipmentStatus } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../utils/api';
 import { PrinterIcon } from '../components/icons/PrinterIcon';
+import { XCircleIcon } from '../components/icons/XCircleIcon';
+
 
 const getDescendantIds = (projectId: string, projects: Project[]): string[] => {
   let descendants: string[] = [];
@@ -40,7 +45,18 @@ const getProjectName = (projects: Project[], selectedIds: string[]): string => {
 };
 
 type DateRangePreset = 'today' | '7d' | '30d' | 'month' | 'custom';
-type Subpage = 'manpower' | 'productivity';
+type Subpage = 'manpower' | 'productivity' | 'equipment' | 'safety';
+
+export type CrossFilters = {
+    subcontractor?: string | null;
+    shift?: Shift | null;
+    type?: EmployeeType | 'Unknown' | null;
+    violationType?: ViolationType | null;
+    equipmentStatus?: EquipmentStatus | null;
+    equipmentId?: string | null;
+    date?: string | null;
+    projectName?: string | null; 
+};
 
 const getInitialDateRange = (range: DateRangePreset) => {
     const endDate = new Date();
@@ -60,30 +76,53 @@ const getInitialDateRange = (range: DateRangePreset) => {
     };
 };
 
+const FilterBadge: React.FC<{ label: string; value: string; onClear: () => void }> = ({ label, value, onClear }) => (
+    <span className="inline-flex items-center gap-x-1.5 rounded-md bg-green-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300">
+        <strong>{label}:</strong> {value}
+        <button type="button" onClick={onClear} className="group relative -mr-1 h-3.5 w-3.5 rounded-sm hover:bg-green-500/20">
+            <span className="sr-only">Remove</span>
+            <XCircleIcon className="h-3.5 w-3.5 text-green-600 dark:text-green-400 group-hover:text-green-700 dark:group-hover:text-green-200" />
+        </button>
+    </span>
+);
+
+
 const Dashboard: React.FC = () => {
-    const { theme, sharedFilters, setSharedFilters } = useStore();
-    const { selectedProjects, dateRange } = sharedFilters;
+    const { theme, sharedFilters, setSharedFilters, currentUser } = useStore();
+    const { selectedProjects, dateRange, selectedActivityGroups } = sharedFilters;
 
     const { data: subcontractors = [] } = useQuery({ queryKey: ['subcontractors'], queryFn: api.fetchSubcontractors });
     const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: api.fetchEmployees });
+    const { data: allEquipment = [] } = useQuery({ queryKey: ['equipment'], queryFn: api.fetchEquipment });
+    const { data: allActivityGroups = [] } = useQuery({ queryKey: ['activityGroups'], queryFn: api.fetchActivityGroups });
+    const { data: allActivityGroupMappings = [] } = useQuery({ queryKey: ['activityGroupMappings'], queryFn: api.fetchActivityGroupMappings });
     
     const { records: allRecords } = useManpowerRecordsForCurrentUser();
     const { projects: allProjects } = useProjectsForCurrentUser();
     const { progressRecords: allProgressRecords } = useProgressRecordsForCurrentUser();
+    const { violations: allSafetyViolations } = useSafetyViolationsForCurrentUser();
+    const { equipmentRecords: allEquipmentRecords } = useEquipmentRecordsForCurrentUser();
 
     const [activeRange, setActiveRange] = useState<DateRangePreset>('30d');
-    const [activeSubpage, setActiveSubpage] = useState<Subpage>('manpower');
-    const [crossFilters, setCrossFilters] = useState<CrossFilters>({ subcontractor: null, shift: null, type: null });
+    const [activeSubpage, setActiveSubpage] = useState<Subpage>(currentUser?.role === 'Safety' ? 'safety' : 'manpower');
+    const [crossFilters, setCrossFilters] = useState<CrossFilters>({});
     const [showEmptyDays, setShowEmptyDays] = useState(true);
     
+    const clearCrossFilters = () => setCrossFilters({});
+
     const setSelectedProjects = (newSelected: string[]) => {
         setSharedFilters({ selectedProjects: newSelected });
-        setCrossFilters({ subcontractor: null, shift: null, type: null });
+        clearCrossFilters();
+    };
+
+    const setSelectedActivityGroups = (newSelected: string[]) => {
+        setSharedFilters({ selectedActivityGroups: newSelected });
+        clearCrossFilters();
     };
 
     const setDateRange = (newDateRange: { start: string, end: string }) => {
         setSharedFilters({ dateRange: newDateRange });
-        setCrossFilters({ subcontractor: null, shift: null, type: null });
+        clearCrossFilters();
     };
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,40 +146,133 @@ const Dashboard: React.FC = () => {
         return Array.from(allIds);
     }, [selectedProjects, allProjects]);
 
+    const activityIdsForGroupFilter = useMemo(() => {
+        if (!selectedActivityGroups || selectedActivityGroups.length === 0) {
+            return null; // No group filter active
+        }
+        const activityIds = new Set<string>();
+        allActivityGroupMappings.forEach(mapping => {
+            if (selectedActivityGroups.includes(mapping.activityGroupId)) {
+                activityIds.add(mapping.activityId);
+            }
+        });
+        return Array.from(activityIds);
+    }, [selectedActivityGroups, allActivityGroupMappings]);
 
-    const filteredRecords = useMemo(() => {
-        if (projectIdsToFilter.length === 0 || !dateRange.start || !dateRange.end) return [];
+    const filterRecords = (records: any[], projectKey: string) => {
+        if (projectIdsToFilter.length === 0 || !dateRange.start || !dateRange.end || !records) return [];
         
-        const start = dateRange.start;
-        const end = dateRange.end;
-
-        return allRecords.filter(record => 
-            projectIdsToFilter.includes(record.project) &&
-            record.date >= start &&
-            record.date <= end
+        let finalRecords = records.filter(record => 
+            projectIdsToFilter.includes(record[projectKey]) &&
+            record.date >= dateRange.start &&
+            record.date <= dateRange.end
         );
-    }, [allRecords, projectIdsToFilter, dateRange]);
+
+        if (activityIdsForGroupFilter) {
+            finalRecords = finalRecords.filter(record => activityIdsForGroupFilter.includes(record[projectKey]));
+        }
+
+        return finalRecords;
+    };
+
+    const filteredManpower = useMemo(() => filterRecords(allRecords, 'project'), [allRecords, projectIdsToFilter, dateRange, activityIdsForGroupFilter]);
+    const filteredProgressRecords = useMemo(() => filterRecords(allProgressRecords, 'activityId'), [allProgressRecords, projectIdsToFilter, dateRange, activityIdsForGroupFilter]);
+    const filteredViolations = useMemo(() => filterRecords(allSafetyViolations, 'projectId'), [allSafetyViolations, projectIdsToFilter, dateRange, activityIdsForGroupFilter]);
+    const filteredEquipmentRecords = useMemo(() => filterRecords(allEquipmentRecords, 'project'), [allEquipmentRecords, projectIdsToFilter, dateRange, activityIdsForGroupFilter]);
     
-    const totalEmployees = useMemo(() => new Set(filteredRecords.map(r => r.empId)).size, [filteredRecords]);
-    
+    const crossFilteredData = useMemo(() => {
+        let mp = filteredManpower;
+        let pr = filteredProgressRecords;
+        let eq = filteredEquipmentRecords;
+        let sv = filteredViolations;
+        
+        const employeeTypeMap = new Map(employees.map(e => [e.empId, e.type]));
+
+        const linkFilters = {
+            dates: new Set<string>(),
+            subcontractors: new Set<string>(),
+            projectIds: new Set<string>(),
+        };
+
+        let isDateFilteredDirectly = !!crossFilters.date;
+
+        if (crossFilters.date) linkFilters.dates.add(crossFilters.date);
+        if (crossFilters.subcontractor) linkFilters.subcontractors.add(crossFilters.subcontractor);
+        
+        if (crossFilters.equipmentStatus) {
+            eq = eq.filter(r => r.status === crossFilters.equipmentStatus);
+            if (!isDateFilteredDirectly) eq.forEach(r => linkFilters.dates.add(r.date));
+        }
+        if (crossFilters.equipmentId) {
+            eq = eq.filter(r => r.equipmentId === crossFilters.equipmentId);
+            if (!isDateFilteredDirectly) eq.forEach(r => linkFilters.dates.add(r.date));
+        }
+        if (crossFilters.violationType) {
+            sv = sv.filter(r => r.violationType === crossFilters.violationType);
+            if (!isDateFilteredDirectly) sv.forEach(r => linkFilters.dates.add(r.date));
+            if (!crossFilters.subcontractor) sv.forEach(r => linkFilters.subcontractors.add(r.subcontractor));
+        }
+        if (crossFilters.shift) {
+            mp = mp.filter(r => r.shift === crossFilters.shift);
+            pr = pr.filter(r => r.shift === crossFilters.shift);
+        }
+        if (crossFilters.type) {
+            mp = mp.filter(r => (employeeTypeMap.get(r.empId) || 'Unknown') === crossFilters.type);
+        }
+        if (crossFilters.projectName) {
+            const rootProject = allProjects.find(p => p.parentId === null && p.name === crossFilters.projectName);
+            if (rootProject) {
+                const descendantIds = getDescendantIds(rootProject.id, allProjects);
+                const allIds = new Set([rootProject.id, ...descendantIds]);
+                mp.filter(r => allIds.has(r.project)).forEach(r => linkFilters.dates.add(r.date));
+                pr.filter(r => allIds.has(r.activityId)).forEach(r => linkFilters.dates.add(r.date));
+                allIds.forEach(id => linkFilters.projectIds.add(id));
+            }
+        }
+
+        if (linkFilters.dates.size > 0) {
+            mp = mp.filter(r => linkFilters.dates.has(r.date));
+            pr = pr.filter(r => linkFilters.dates.has(r.date));
+            eq = eq.filter(r => linkFilters.dates.has(r.date));
+            sv = sv.filter(r => linkFilters.dates.has(r.date));
+        }
+        if (linkFilters.subcontractors.size > 0) {
+            mp = mp.filter(r => linkFilters.subcontractors.has(r.subcontractor));
+            sv = sv.filter(v => linkFilters.subcontractors.has(v.subcontractor));
+        }
+        if(linkFilters.projectIds.size > 0) {
+            mp = mp.filter(r => linkFilters.projectIds.has(r.project));
+            pr = pr.filter(r => linkFilters.projectIds.has(r.activityId));
+            eq = eq.filter(r => linkFilters.projectIds.has(r.project));
+            sv = sv.filter(r => linkFilters.projectIds.has(r.projectId));
+        }
+
+        return { manpower: mp, equipment: eq, violations: sv, progress: pr };
+    }, [filteredManpower, filteredProgressRecords, filteredEquipmentRecords, filteredViolations, crossFilters, employees, allProjects]);
+
+
     const todaysHeadcount = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
-        return allRecords.filter(r => 
-            r.date === today && projectIdsToFilter.includes(r.project)
-        ).length;
+        return allRecords.filter(r => r.date === today && projectIdsToFilter.includes(r.project)).length;
     }, [allRecords, projectIdsToFilter]);
 
     const avgDailyManpower = useMemo(() => {
-        if (!filteredRecords.length || !dateRange.start || !dateRange.end) return 0;
+        if (!filteredManpower.length || !dateRange.start || !dateRange.end) return 0;
         const start = new Date(dateRange.start);
         const end = new Date(dateRange.end);
         const diffTime = Math.abs(end.getTime() - start.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        return filteredRecords.length / diffDays;
-    }, [filteredRecords, dateRange]);
+        
+        const recordsByDay = filteredManpower.reduce((acc, r) => {
+            acc.add(r.date);
+            return acc;
+        }, new Set<string>());
 
+        return filteredManpower.length / (showEmptyDays ? diffDays : recordsByDay.size || 1);
+    }, [filteredManpower, dateRange, showEmptyDays]);
 
     const projectName = getProjectName(allProjects, selectedProjects);
+    const hasActiveFilters = Object.values(crossFilters).some(f => f !== null && f !== undefined);
 
     const rangePresets: { id: DateRangePreset, label: string }[] = [
         { id: 'today', label: 'Today' },
@@ -149,10 +281,18 @@ const Dashboard: React.FC = () => {
         { id: 'month', label: 'This Month' },
     ];
     
-    const subpageTabs: { id: Subpage, label: string }[] = [
-        { id: 'manpower', label: 'Manpower' },
-        { id: 'productivity', label: 'Productivity' },
-    ];
+     const subpageTabs = useMemo(() => {
+        const allTabs: { id: Subpage, label: string }[] = [
+            { id: 'manpower', label: 'Manpower' },
+            { id: 'productivity', label: 'Productivity' },
+            { id: 'equipment', label: 'Equipment' },
+            { id: 'safety', label: 'Safety' },
+        ];
+        if (currentUser?.role === 'Safety') {
+            return allTabs.filter(t => t.id === 'safety');
+        }
+        return allTabs;
+    }, [currentUser]);
     
     const today = new Date().toISOString().split('T')[0];
 
@@ -175,8 +315,8 @@ const Dashboard: React.FC = () => {
             </PageHeader>
             
             <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm no-print">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                    <div className="lg:col-span-1">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-5 gap-6 items-start">
+                    <div className="xl:col-span-1">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Project
                         </label>
@@ -186,7 +326,17 @@ const Dashboard: React.FC = () => {
                             onSelectionChange={setSelectedProjects}
                         />
                     </div>
-                    <div className="lg:col-span-2">
+                    <div className="xl:col-span-1">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Activity Group
+                        </label>
+                        <ActivityGroupMultiSelectFilter 
+                            activityGroups={allActivityGroups}
+                            selectedIds={selectedActivityGroups}
+                            onSelectionChange={setSelectedActivityGroups}
+                        />
+                    </div>
+                    <div className="lg:col-span-2 xl:col-span-3">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Date Range
                         </label>
@@ -254,9 +404,28 @@ const Dashboard: React.FC = () => {
                     </nav>
                 </div>
             </div>
+
+            {hasActiveFilters && (
+                <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm flex items-center justify-between flex-wrap gap-2 no-print">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Filters:</span>
+                        {crossFilters.subcontractor && <FilterBadge label="Subcontractor" value={crossFilters.subcontractor} onClear={() => setCrossFilters(p => ({ ...p, subcontractor: null }))} />}
+                        {crossFilters.shift && <FilterBadge label="Shift" value={crossFilters.shift} onClear={() => setCrossFilters(p => ({ ...p, shift: null }))} />}
+                        {crossFilters.type && <FilterBadge label="Type" value={crossFilters.type} onClear={() => setCrossFilters(p => ({ ...p, type: null }))} />}
+                        {crossFilters.violationType && <FilterBadge label="Violation" value={crossFilters.violationType} onClear={() => setCrossFilters(p => ({ ...p, violationType: null }))} />}
+                        {crossFilters.equipmentStatus && <FilterBadge label="Eq. Status" value={crossFilters.equipmentStatus} onClear={() => setCrossFilters(p => ({ ...p, equipmentStatus: null }))} />}
+                        {crossFilters.equipmentId && <FilterBadge label="Equipment" value={allEquipment.find(e => e.id === crossFilters.equipmentId)?.name || ''} onClear={() => setCrossFilters(p => ({ ...p, equipmentId: null }))} />}
+                        {crossFilters.date && <FilterBadge label="Date" value={crossFilters.date} onClear={() => setCrossFilters(p => ({ ...p, date: null }))} />}
+                        {crossFilters.projectName && <FilterBadge label="Project" value={crossFilters.projectName} onClear={() => setCrossFilters(p => ({ ...p, projectName: null }))} />}
+                    </div>
+                    <button onClick={clearCrossFilters} className="text-sm font-semibold text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                        Clear All
+                    </button>
+                </div>
+            )}
             
-            {activeSubpage === 'manpower' && (
-                <div className="flex items-center justify-end no-print">
+            {(activeSubpage === 'manpower' || activeSubpage === 'productivity') && (
+                <div className="flex items-center justify-end no-print -my-4">
                     <label className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
                         <input type="checkbox" checked={showEmptyDays} onChange={() => setShowEmptyDays(s => !s)} className="rounded text-[#28a745] focus:ring-[#28a745] dark:bg-slate-600 dark:border-slate-500" />
                         <span>Show Empty Days & Weekends</span>
@@ -264,17 +433,15 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-
             <div className="mt-6">
                 {activeSubpage === 'manpower' && (
                      <DashboardMetrics 
-                        records={filteredRecords} 
+                        records={crossFilteredData.manpower} 
+                        allRecordsForStats={filteredManpower}
                         subcontractors={subcontractors} 
                         projects={allProjects}
                         employees={employees}
-                        selectedProjects={selectedProjects}
                         theme={theme}
-                        totalEmployees={totalEmployees}
                         todaysHeadcount={todaysHeadcount}
                         avgDailyManpower={avgDailyManpower}
                         crossFilters={crossFilters}
@@ -285,11 +452,35 @@ const Dashboard: React.FC = () => {
                 )}
                 {activeSubpage === 'productivity' && (
                     <ProductivityDashboard
-                        records={filteredRecords}
+                        records={crossFilteredData.manpower}
                         projects={allProjects}
-                        progressRecords={allProgressRecords}
+                        progressRecords={crossFilteredData.progress}
+                        activityGroups={allActivityGroups}
                         projectIdsToFilter={projectIdsToFilter}
                         theme={theme}
+                        crossFilters={crossFilters}
+                        setCrossFilters={setCrossFilters}
+                        selectedActivityGroups={selectedActivityGroups}
+                        dateRange={dateRange}
+                        showEmptyDays={showEmptyDays}
+                    />
+                )}
+                {activeSubpage === 'equipment' && (
+                    <EquipmentDashboard
+                        equipmentRecords={crossFilteredData.equipment}
+                        equipment={allEquipment}
+                        theme={theme}
+                        crossFilters={crossFilters}
+                        setCrossFilters={setCrossFilters}
+                    />
+                )}
+                {activeSubpage === 'safety' && (
+                    <SafetyDashboard
+                        violations={crossFilteredData.violations}
+                        subcontractors={subcontractors}
+                        theme={theme}
+                        crossFilters={crossFilters}
+                        setCrossFilters={setCrossFilters}
                     />
                 )}
             </div>

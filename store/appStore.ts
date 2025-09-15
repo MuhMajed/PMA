@@ -9,6 +9,7 @@ export interface AppState {
   sharedFilters: {
     selectedProjects: string[];
     dateRange: { start: string, end: string };
+    selectedActivityGroups: string[];
   };
   isFilterInitialized: boolean;
 
@@ -44,6 +45,7 @@ export const useStore = create<AppState>((set) => ({
   sharedFilters: {
     selectedProjects: [], // Initialized in App.tsx after projects load
     dateRange: getInitialDateRange(),
+    selectedActivityGroups: [],
   },
   isFilterInitialized: false,
 

@@ -1,7 +1,5 @@
-
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Project, ProgressRecord as ProgressRecordType, User, Shift } from '../types';
+import { Project, ProgressRecord as ProgressRecordType, User, Shift, ProjectNodeType, ActivityGroup, ActivityGroupMapping } from '../types';
 import PageHeader from '../components/ui/PageHeader';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
@@ -12,10 +10,22 @@ import { exportToExcel } from '../utils/excel';
 import { ChevronUpDownIcon } from '../components/icons/ChevronUpDownIcon';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { HIERARCHY, DEFAULT_HIERARCHY_LABELS } from '../constants';
+import Modal from '../components/ui/Modal';
+
+const getDescendantIds = (projectId: string, allProjects: Project[]): string[] => {
+    const ids = [projectId];
+    const children = allProjects.filter(p => p.parentId === projectId);
+    children.forEach(child => {
+        ids.push(...getDescendantIds(child.id, allProjects));
+    });
+    return ids;
+};
 
 interface ProgressRecordPageProps {
     projects: Project[];
     progressRecords: ProgressRecordType[];
+    activityGroups: ActivityGroup[];
+    activityGroupMappings: ActivityGroupMapping[];
     onAddProgress: (record: Omit<ProgressRecordType, 'id'>) => void;
     onUpdateProgress: (record: ProgressRecordType) => void;
     onDeleteProgress: (id: string) => void;
@@ -23,10 +33,10 @@ interface ProgressRecordPageProps {
 }
 
 type SortDirection = 'ascending' | 'descending';
-type SortableProgressRecord = ProgressRecordType & { cumulativeQty: number };
+type SortableProgressRecord = ProgressRecordType & { dailyQty: number; activityPath: string };
 
 interface SortConfig {
-  key: keyof SortableProgressRecord;
+  key: keyof SortableProgressRecord | 'qty';
   direction: SortDirection;
 }
 
@@ -37,17 +47,22 @@ const useSortableData = (items: SortableProgressRecord[], config: SortConfig | n
     let sortableItems = [...items];
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
-        const aValue = a[sortConfig.key] || '';
-        const bValue = b[sortConfig.key] || '';
-        if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+        let aValue = a[sortConfig.key as keyof SortableProgressRecord];
+        let bValue = b[sortConfig.key as keyof SortableProgressRecord];
+        
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+             return sortConfig.direction === 'ascending' ? aValue - bValue : bValue - aValue;
+        }
+        
+        if (String(aValue).localeCompare(String(bValue)) < 0) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (String(aValue).localeCompare(String(bValue)) > 0) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
       });
     }
     return sortableItems;
   }, [items, sortConfig]);
 
-  const requestSort = (key: keyof SortableProgressRecord) => {
+  const requestSort = (key: keyof SortableProgressRecord | 'qty') => {
     let direction: SortDirection = 'ascending';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
       direction = 'descending';
@@ -58,15 +73,10 @@ const useSortableData = (items: SortableProgressRecord[], config: SortConfig | n
   return { items: sortedItems, requestSort, sortConfig };
 };
 
-const SortableHeader: React.FC<{
-    sortKey: any,
-    title: string,
-    requestSort: (key: any) => void,
-    sortConfig: SortConfig | null
-}> = ({ sortKey, title, requestSort, sortConfig }) => {
+const SortableHeader: React.FC<{ sortKey: keyof SortableProgressRecord | 'qty', title: string, requestSort: (key: any) => void, sortConfig: SortConfig | null }> = ({ sortKey, title, requestSort, sortConfig }) => {
     const isSorted = sortConfig?.key === sortKey;
     return (
-        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(sortKey)}>
+        <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(sortKey)}>
             <div className="flex items-center">
                 <span>{title}</span>
                 <ChevronUpDownIcon className={`h-4 w-4 ml-1.5 ${isSorted ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`} />
@@ -75,446 +85,360 @@ const SortableHeader: React.FC<{
     );
 };
 
+const initialHierarchyState = HIERARCHY.reduce((acc, level) => ({ ...acc, [level]: null }), {} as Record<ProjectNodeType, string | null>);
 
-const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progressRecords, onAddProgress, onUpdateProgress, onDeleteProgress, currentUser }) => {
-    const [selectedHierarchyIds, setSelectedHierarchyIds] = useState<string[]>([]);
+const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progressRecords, activityGroups, activityGroupMappings, onAddProgress, onUpdateProgress, onDeleteProgress, currentUser }) => {
+    const [selectedHierarchy, setSelectedHierarchy] = useState<Record<ProjectNodeType, string | null>>(initialHierarchyState);
     const [recordToEdit, setRecordToEdit] = useState<ProgressRecordType | null>(null);
-
-    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [quantity, setQuantity] = useState<number | ''>(''); 
-    const [manualPercentage, setManualPercentage] = useState<number | ''>('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    // Form state
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [cumulativeQty, setCumulativeQty] = useState<number | ''>('');
     const [shift, setShift] = useState<Shift>(Shift.DAY);
     const { showError, showConfirmation } = useMessage();
-    
-    const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
-
     const canModify = currentUser.role === 'Admin' || currentUser.role === 'Data Entry';
-    const canDelete = currentUser.role === 'Admin';
-    
-    const selectedActivityId = useMemo(() => {
-        const lastId = selectedHierarchyIds[selectedHierarchyIds.length - 1];
-        if (!lastId) return null;
-        const node = projectsById.get(lastId);
-        return node?.type === 'Activity' ? lastId : null;
-    }, [selectedHierarchyIds, projectsById]);
 
-    const selectedActivity = useMemo(() => projects.find(p => p.id === selectedActivityId), [projects, selectedActivityId]);
-    
-    const recordsForActivity = useMemo(() => 
-        progressRecords
-            .filter(r => r.activityId === selectedActivityId)
-            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()), 
-        [progressRecords, selectedActivityId]
-    );
-    
-    const cumulativeData = useMemo(() => {
-        let cumulativeTotal = 0;
-        return recordsForActivity.map(record => {
-            cumulativeTotal += record.qty;
-            return { ...record, cumulativeQty: cumulativeTotal };
-        });
-    }, [recordsForActivity]);
-    
-    const { items: sortedCumulativeData, requestSort, sortConfig } = useSortableData(cumulativeData, { key: 'date', direction: 'ascending'});
-    
-    const getActivityPath = useCallback((activityId: string): Project[] => {
-        const path: Project[] = [];
-        let current = projectsById.get(activityId);
-        while (current) {
-            path.unshift(current);
-            current = current.parentId ? projectsById.get(current.parentId) : undefined;
+    const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
+
+    const getRootProject = useCallback((projectId: string | null) => {
+        if (!projectId) return null;
+        let current = projectMap.get(projectId);
+        while (current?.parentId) {
+            current = projectMap.get(current.parentId);
         }
-        return path;
-    }, [projectsById]);
+        return current || null;
+    }, [projectMap]);
 
-    const resetForm = useCallback(() => {
+    const hierarchyLabels = useMemo(() => {
+        const root = getRootProject(selectedHierarchy.Project);
+        return { ...DEFAULT_HIERARCHY_LABELS, ...(root?.hierarchyLabels || {}) };
+    }, [selectedHierarchy, getRootProject]);
+
+    const handleHierarchyChange = useCallback((level: ProjectNodeType, value: string | null) => {
+        setSelectedHierarchy(prev => {
+            const newState = { ...prev, [level]: value };
+            const levelIndex = HIERARCHY.indexOf(level);
+            HIERARCHY.slice(levelIndex + 1).forEach(l => { newState[l] = null; });
+            return newState;
+        });
         setRecordToEdit(null);
-        setSelectedDate(new Date().toISOString().split('T')[0]);
-        setQuantity('');
-        setManualPercentage('');
-        setShift(Shift.DAY);
     }, []);
+
+    const activityForForm = useMemo(() => {
+        const activityId = recordToEdit ? recordToEdit.activityId : selectedHierarchy.Activity;
+        return activityId ? projectMap.get(activityId) : null;
+    }, [selectedHierarchy, projectMap, recordToEdit]);
 
     useEffect(() => {
         if (recordToEdit) {
-            const path = getActivityPath(recordToEdit.activityId);
-            setSelectedHierarchyIds(path.map(p => p.id));
-            setSelectedDate(recordToEdit.date);
-            const cumulativeRecord = cumulativeData.find(r => r.id === recordToEdit.id);
-            setQuantity(cumulativeRecord?.cumulativeQty ?? '');
-            setManualPercentage(recordToEdit.manualPercentage ?? '');
+            setDate(recordToEdit.date);
+            setCumulativeQty(recordToEdit.qty);
             setShift(recordToEdit.shift || Shift.DAY);
-        }
-    }, [recordToEdit, cumulativeData, getActivityPath]);
-    
-
-    const handleHierarchyChange = (levelIndex: number, value: string | null) => {
-        let newHierarchy = [...selectedHierarchyIds.slice(0, levelIndex)];
-        if (value) {
-            newHierarchy.push(value);
-            
-            // Auto-select path if there's only one child
-            let currentNodeId = value;
-            while (true) {
-                const children = projects.filter(p => p.parentId === currentNodeId);
-                if (children.length === 1) {
-                    const child = children[0];
-                    newHierarchy.push(child.id);
-                    currentNodeId = child.id;
-                    if (child.type === 'Activity') {
-                        break;
-                    }
-                } else {
-                    break;
-                }
+            const path: Record<ProjectNodeType, string | null> = { ...initialHierarchyState };
+            let current = projectMap.get(recordToEdit.activityId);
+            while (current) {
+                path[current.type] = current.id;
+                current = current.parentId ? projectMap.get(current.parentId) : undefined;
             }
+            setSelectedHierarchy(path);
         }
-        
-        setSelectedHierarchyIds(newHierarchy);
-        resetForm();
+    }, [recordToEdit, projectMap]);
+
+    const handleOpenAddModal = () => {
+        setRecordToEdit(null);
+        setDate(new Date().toISOString().split('T')[0]);
+        setCumulativeQty('');
+        setShift(Shift.DAY);
+        setIsModalOpen(true);
     };
+
+    const handleOpenEditModal = (rec: ProgressRecordType) => {
+        setRecordToEdit(rec);
+        setIsModalOpen(true);
+    };
+
+    const previousCumulativeQty = useMemo(() => {
+        if (!activityForForm) return 0;
+        const relevantRecords = progressRecords.filter(r => {
+            if (r.activityId !== activityForForm.id) return false;
+            if (recordToEdit && r.id === recordToEdit.id) return false;
+            if (r.date < date) return true;
+            if (r.date > date) return false;
+            return r.shift === Shift.DAY && shift === Shift.NIGHT;
+        });
+        if (relevantRecords.length === 0) return 0;
+        relevantRecords.sort((a, b) => {
+            const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
+            if (dateComparison !== 0) return dateComparison;
+            if (a.shift === Shift.NIGHT && b.shift === Shift.DAY) return 1;
+            if (a.shift === Shift.DAY && b.shift === Shift.NIGHT) return -1;
+            return 0;
+        });
+        return relevantRecords[0]?.qty || 0;
+    }, [progressRecords, activityForForm, date, shift, recordToEdit]);
     
-    const getCumulativeBeforeDate = (date: string, excludeRecordId?: string) => {
-         return recordsForActivity
-            .filter(r => r.date < date && r.id !== excludeRecordId)
-            .reduce((sum, record) => sum + record.qty, 0);
-    }
+    const dailyQtyForEntry = useMemo(() => {
+        const currentQty = Number(cumulativeQty);
+        if (isNaN(currentQty) || cumulativeQty === '') return 0;
+        return currentQty - previousCumulativeQty;
+    }, [cumulativeQty, previousCumulativeQty]);
+
+    const progressPercentage = useMemo(() => {
+        if (!activityForForm || !activityForForm.totalQty) return 0;
+        const currentTotal = Number(cumulativeQty) || 0;
+        return (currentTotal / activityForForm.totalQty) * 100;
+    }, [activityForForm, cumulativeQty]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (!selectedActivityId || !selectedActivity) {
-            showError("Selection Missing", "Please select a valid activity from all levels.");
+        if (!activityForForm) {
+            showError("No Activity Selected", "An activity must be selected to log progress.");
             return;
         }
-
-        if (quantity === '' || isNaN(Number(quantity))) {
-            showError("Invalid Input", "Please enter a valid quantity.");
+        if (cumulativeQty === '' || isNaN(Number(cumulativeQty))) {
+            showError("Invalid Quantity", "Cumulative quantity must be a number.");
             return;
         }
-        
-        const cumulativeQtyInput = Number(quantity);
-
+        const newCumulativeQty = Number(cumulativeQty);
+        if (newCumulativeQty < previousCumulativeQty) {
+            showError("Invalid Quantity", `Cumulative quantity (${newCumulativeQty.toLocaleString()}) cannot be less than the previous recorded cumulative of ${previousCumulativeQty.toLocaleString()}.`);
+            return;
+        }
+        const plannedQty = activityForForm.totalQty;
+        if (plannedQty !== undefined && plannedQty > 0 && newCumulativeQty > plannedQty) {
+            showError("Quantity Exceeded", `This entry of ${newCumulativeQty.toLocaleString()} would exceed the total planned quantity of ${plannedQty.toLocaleString()}.\n\nPlease adjust the cumulative quantity or update the planned BOQ quantity in Settings > Projects.`);
+            return;
+        }
+        const mapping = activityGroupMappings.find(m => m.activityId === activityForForm.id);
+        if (!mapping) {
+            showError("Activity Not Mapped", "This activity has not been mapped to an Activity Group. Please configure it in Settings.");
+            return;
+        }
+        const recordData = { date, qty: newCumulativeQty, shift, activityId: activityForForm.id, activityGroupId: mapping.activityGroupId };
         if (recordToEdit) {
-            const prevCumulative = getCumulativeBeforeDate(recordToEdit.date, recordToEdit.id);
-            const newDailyQty = cumulativeQtyInput - prevCumulative;
-
-            if (newDailyQty < 0) {
-                showError("Invalid Quantity", `Cumulative quantity cannot be less than the previous day's total of ${prevCumulative.toFixed(2)}.`);
-                return;
-            }
-
-            const totalWithoutOldRecord = (cumulativeData.length > 0 ? cumulativeData[cumulativeData.length-1].cumulativeQty : 0) - recordToEdit.qty;
-            const newTotalWithNewDaily = totalWithoutOldRecord + newDailyQty;
-
-            if (selectedActivity.totalQty && newTotalWithNewDaily > selectedActivity.totalQty) {
-                showError("Exceeds Planned Quantity", `This update would make the total ${newTotalWithNewDaily.toFixed(2)}, exceeding the planned ${selectedActivity.totalQty}.`);
-                return;
-            }
-
-            const updatedRecord: ProgressRecordType = {
-                ...recordToEdit,
-                qty: newDailyQty,
-                manualPercentage: manualPercentage !== '' ? Number(manualPercentage) : undefined,
-                shift,
-            };
-            onUpdateProgress(updatedRecord);
+            onUpdateProgress({ ...recordData, id: recordToEdit.id });
         } else {
-            if (selectedActivity.totalQty && cumulativeQtyInput > selectedActivity.totalQty) {
-                showError("Exceeds Planned Quantity", `Cumulative quantity (${cumulativeQtyInput}) exceeds the total planned quantity (${selectedActivity.totalQty}).`);
-                return;
-            }
-
-            const existingRecordOnDate = recordsForActivity.find(r => r.date === selectedDate);
-            if (existingRecordOnDate) {
-                showError("Duplicate Record", `A record for ${selectedDate} already exists. Please edit the existing record.`);
-                return;
-            }
-
-            const currentCumulativeQty = getCumulativeBeforeDate(selectedDate);
-            if (cumulativeQtyInput < currentCumulativeQty) {
-                showError("Invalid Quantity", `Cumulative quantity (${cumulativeQtyInput}) cannot be less than the previously recorded cumulative of ${currentCumulativeQty.toFixed(2)}.`);
-                return;
-            }
-
-            const nextRecord = recordsForActivity.find(r => r.date > selectedDate);
-            if (nextRecord) {
-                const nextCumulativeEntry = cumulativeData.find(cd => cd.id === nextRecord.id);
-                if (nextCumulativeEntry && cumulativeQtyInput > nextCumulativeEntry.cumulativeQty) {
-                    showError("Invalid Quantity", `The cumulative quantity (${cumulativeQtyInput}) cannot be greater than the quantity recorded on the next available date (${nextRecord.date}), which is ${nextCumulativeEntry.cumulativeQty.toFixed(2)}.`);
-                    return;
-                }
-            }
-
-            const dailyQty = cumulativeQtyInput - currentCumulativeQty;
-            const newRecord: Omit<ProgressRecordType, 'id'> = {
-                activityId: selectedActivityId,
-                date: selectedDate,
-                qty: dailyQty,
-                manualPercentage: (!selectedActivity?.totalQty && manualPercentage !== '') ? Number(manualPercentage) : undefined,
-                shift,
-            };
-            onAddProgress(newRecord);
+            onAddProgress(recordData);
         }
-        
-        resetForm(); 
-        const currentSelection = [...selectedHierarchyIds];
-        setSelectedHierarchyIds([]);
-        setTimeout(() => setSelectedHierarchyIds(currentSelection), 0);
+        setRecordToEdit(null);
+        setIsModalOpen(false);
     };
 
-    const handleDelete = (record: ProgressRecordType) => {
-        showConfirmation(
-            'Delete Progress Record',
-            `Are you sure you want to delete the record for ${record.date}?\nThis action cannot be undone.`,
-            () => onDeleteProgress(record.id)
-        );
+    const handleDelete = (id: string) => {
+        showConfirmation('Delete Record', 'Are you sure you want to delete this progress record?', () => onDeleteProgress(id));
     };
     
-    const finalCumulativeQty = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeQty : 0;
-    const finalPercentage = selectedActivity?.totalQty ? (finalCumulativeQty / selectedActivity.totalQty) * 100 : 0;
-    
-    const currentCumulativeQtyForDisplay = recordToEdit ? getCumulativeBeforeDate(recordToEdit.date, recordToEdit.id) : getCumulativeBeforeDate(selectedDate);
+    const getPathString = useCallback((activityId: string): string => {
+        const path: string[] = [];
+        let current = projectMap.get(activityId);
+        while (current) {
+            path.unshift(current.name);
+            current = current.parentId ? projectMap.get(current.parentId) : undefined;
+        }
+        return path.slice(1).join(' / ');
+    }, [projectMap]);
+
+    const filteredRecords = useMemo(() => {
+        let deepestSelectedId: string | null = null;
+        for (let i = HIERARCHY.length - 1; i >= 0; i--) {
+            if (selectedHierarchy[HIERARCHY[i]]) {
+                deepestSelectedId = selectedHierarchy[HIERARCHY[i]];
+                break;
+            }
+        }
+        if (!deepestSelectedId) return [];
+        const descendantIds = getDescendantIds(deepestSelectedId, projects);
+        const activityIds = new Set(projects.filter(p => p.type === 'Activity' && descendantIds.includes(p.id)).map(p => p.id));
+        return progressRecords.filter(r => activityIds.has(r.activityId));
+    }, [selectedHierarchy, projects, progressRecords]);
+
+    const enhancedRecords = useMemo(() => {
+        const recordsByActivity = new Map<string, ProgressRecordType[]>();
+        filteredRecords.forEach(rec => {
+            if (!recordsByActivity.has(rec.activityId)) recordsByActivity.set(rec.activityId, []);
+            recordsByActivity.get(rec.activityId)!.push(rec);
+        });
+        const result: SortableProgressRecord[] = [];
+        recordsByActivity.forEach((records) => {
+            records.sort((a, b) => {
+                const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
+                if (dateComp !== 0) return dateComp;
+                if (a.shift === Shift.DAY && b.shift === Shift.NIGHT) return -1;
+                if (a.shift === Shift.NIGHT && b.shift === Shift.DAY) return 1;
+                return 0;
+            });
+            let lastCumulativeQty = 0;
+            records.forEach(rec => {
+                const dailyQty = rec.qty - lastCumulativeQty;
+                result.push({ 
+                    ...rec, 
+                    dailyQty: dailyQty < 0 ? rec.qty : dailyQty,
+                    activityPath: getPathString(rec.activityId) 
+                });
+                lastCumulativeQty = rec.qty;
+            });
+        });
+        return result;
+    }, [filteredRecords, getPathString]);
+
+    const { items: sortedRecords, requestSort, sortConfig } = useSortableData(enhancedRecords, { key: 'activityPath', direction: 'ascending' });
 
     const handleExport = () => {
-        if (!selectedActivity) return;
-        const dataToExport = sortedCumulativeData.map(rec => {
-            const percentage = selectedActivity.totalQty 
-                ? (rec.cumulativeQty / selectedActivity.totalQty) * 100 
-                : rec.manualPercentage ?? null;
+        const dataToExport = sortedRecords.map(r => {
+            const activity = projectMap.get(r.activityId);
             return {
-                Date: rec.date,
-                Shift: rec.shift || 'Day',
-                'Daily Qty': rec.qty.toFixed(2),
-                'Cumulative Qty': rec.cumulativeQty.toFixed(2),
-                'Progress %': percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'
+                Date: r.date,
+                Shift: r.shift,
+                Activity: r.activityPath,
+                'Unit of Measure': activity?.uom || 'N/A',
+                'Daily Quantity': r.dailyQty,
+                'Cumulative Quantity': r.qty,
+                'Planned Quantity': activity?.totalQty ?? 'N/A'
             };
         });
-        exportToExcel(dataToExport, `Progress_Report_${selectedActivity.name}`);
-    };
-    
-    const renderSlicers = () => {
-        const slicers = [];
-        
-        const rootProjectId = selectedHierarchyIds[0];
-        const rootProject = rootProjectId ? projectsById.get(rootProjectId) : null;
-        const labels = rootProject?.hierarchyLabels 
-            ? { ...DEFAULT_HIERARCHY_LABELS, ...rootProject.hierarchyLabels } 
-            : DEFAULT_HIERARCHY_LABELS;
-
-        // Slicer 0: Root Projects
-        const rootProjects = projects.filter(p => p.parentId === null);
-        slicers.push(
-            <div key="level-0">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{labels.Project}</label>
-                <SearchableSelect
-                    options={rootProjects.map(p => ({ value: p.id, label: p.name }))}
-                    value={selectedHierarchyIds[0] || null}
-                    onChange={(value) => handleHierarchyChange(0, value)}
-                    placeholder={`Select ${labels.Project}...`}
-                />
-            </div>
-        );
-    
-        let parentId: string | null = selectedHierarchyIds[0];
-        for (let i = 0; i < selectedHierarchyIds.length; i++) {
-            parentId = selectedHierarchyIds[i];
-            const children = projects.filter(p => p.parentId === parentId);
-    
-            if (children.length > 0) {
-                const childType = children[0].type;
-                const levelLabel = labels[childType] || childType;
-    
-                slicers.push(
-                    // The key is tied to the parentId to ensure React creates a new
-                    // component instance when the parent changes, resetting any internal state.
-                    <div key={`slicer-for-${parentId}`}>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{levelLabel}</label>
-                        <SearchableSelect
-                            options={children.map(p => ({ value: p.id, label: p.name }))}
-                            value={selectedHierarchyIds[i + 1] || null}
-                            onChange={(value) => handleHierarchyChange(i + 1, value)}
-                            placeholder={`Select ${levelLabel}...`}
-                        />
-                    </div>
-                );
-            }
-        }
-    
-        return slicers;
+        exportToExcel(dataToExport, "Progress_Report");
     };
 
+    const renderHierarchySelectors = () => {
+        let parentId: string | null = null;
+        return HIERARCHY.map((level, index) => {
+            if (index > 0 && !parentId) return null;
+            const options = projects
+                .filter(p => p.type === level && p.parentId === parentId)
+                .map(p => ({ value: p.id, label: p.name }));
+
+            if (index > 0 && options.length === 0) return null;
+
+            const selectedValue = selectedHierarchy[level];
+            parentId = selectedValue;
+
+            return (
+                <div key={level}>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{hierarchyLabels[level]}</label>
+                    <SearchableSelect
+                        options={options}
+                        value={selectedValue}
+                        onChange={(val) => handleHierarchyChange(level, val)}
+                        placeholder={`Select ${hierarchyLabels[level]}...`}
+                        disabled={options.length === 0 && index > 0}
+                    />
+                </div>
+            );
+        });
+    };
 
     return (
         <div className="space-y-6">
-            <PageHeader
-                title="Progress Record"
-                subtitle="Select an activity to record or view daily progress."
-            >
-                 <button
-                    onClick={handleExport}
-                    disabled={!selectedActivity || cumulativeData.length === 0}
-                    className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:bg-slate-50 disabled:cursor-not-allowed dark:disabled:bg-slate-700"
-                >
-                    <ExportIcon className="h-5 w-5 mr-2" />
-                    Export
-                </button>
-            </PageHeader>
-
-            <div className={`grid grid-cols-1 ${canModify ? 'lg:grid-cols-3' : ''} gap-6`}>
-                {canModify && (
-                    <div className="lg:col-span-1 space-y-6">
-                        <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
-                            <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{recordToEdit ? `Editing Record for ${recordToEdit.date}` : 'Record Progress'}</h3>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="space-y-3">
-                                    {renderSlicers()}
-                                </div>
-                                
-                                {selectedActivityId && (
-                                    <>
-                                        <hr className="border-slate-200 dark:border-slate-700"/>
-                                        {!recordToEdit && (
-                                            <div>
-                                                <label htmlFor="date-picker" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-                                                <div className="flex">
-                                                    <input type="date" id="date-picker" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-                                                        className="block w-full pl-3 pr-2 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-l-md"
-                                                        max={new Date().toISOString().split('T')[0]}
-                                                    />
-                                                    <button type="button" onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600">Today</button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center justify-between pt-1">
-                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Shift</label>
-                                            <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-700/50 rounded-lg">
-                                                <button type="button" onClick={() => setShift(Shift.DAY)} className={`px-3 py-1 text-sm rounded-md transition-all ${shift === Shift.DAY ? 'bg-white dark:bg-slate-600 shadow' : 'text-slate-600 dark:text-slate-300'}`}>Day</button>
-                                                <button type="button" onClick={() => setShift(Shift.NIGHT)} className={`px-3 py-1 text-sm rounded-md transition-all ${shift === Shift.NIGHT ? 'bg-white dark:bg-slate-600 shadow' : 'text-slate-600 dark:text-slate-300'}`}>Night</button>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                Cumulative Quantity Executed
-                                            </label>
-                                            <div className="relative">
-                                                <input type="number" id="quantity" value={quantity} onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                                                    className="block w-full pl-3 pr-12 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
-                                                    placeholder={`Current is ${currentCumulativeQtyForDisplay.toFixed(2)}`}
-                                                    step="any" min={currentCumulativeQtyForDisplay}
-                                                />
-                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                    <span className="text-slate-500 sm:text-sm">{selectedActivity?.uom}</span>
-                                                </div>
-                                            </div>
-                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                                Enter the total quantity completed up to the selected date.
-                                            </p>
-                                        </div>
-                                        {!selectedActivity?.totalQty && (
-                                            <div>
-                                                <label htmlFor="manualPercentage" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                    Cumulative Progress % (Optional)
-                                                </label>
-                                                <input type="number" id="manualPercentage" value={manualPercentage} onChange={(e) => setManualPercentage(e.target.value === '' ? '' : Number(e.target.value))}
-                                                    className="block w-full pl-3 py-2 text-base border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm rounded-md"
-                                                    placeholder="Enter % if no total Qty"
-                                                    step="any" min="0" max="100"
-                                                />
-                                            </div>
-                                        )}
-                                        <div className="flex space-x-3">
-                                            {recordToEdit && (
-                                                <button type="button" onClick={() => setRecordToEdit(null)} className="w-full flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
-                                                    Cancel Edit
-                                                </button>
-                                            )}
-                                            <button type="submit" disabled={!selectedActivityId} className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700 disabled:bg-green-300">
-                                                <PlusIcon className="h-5 w-5 mr-2" /> {recordToEdit ? 'Update Record' : 'Add Record'}
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </form>
-                        </div>
+            <PageHeader title="Progress Records" subtitle="Log and view daily progress for project activities." />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
+                        <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">Filters</h3>
+                        <div className="space-y-4">{renderHierarchySelectors()}</div>
+                        {selectedHierarchy.Activity && canModify && (
+                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                                <button 
+                                    onClick={handleOpenAddModal} 
+                                    className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#28a745] hover:bg-green-700"
+                                >
+                                    <PlusIcon className="h-5 w-5 mr-2" />
+                                    Add Progress for Selected Activity
+                                </button>
+                            </div>
+                        )}
                     </div>
-                )}
-
-                <div className={canModify ? "lg:col-span-2 bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm" : "bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm"}>
-                   {selectedActivity ? (
-                    <>
-                        <div className="pb-4 border-b border-slate-200 dark:border-slate-700 mb-4">
-                            <h3 className="text-lg font-medium text-slate-900 dark:text-white">{selectedActivity.name}</h3>
-                            <div className="flex justify-between items-baseline mt-2 text-sm text-slate-600 dark:text-slate-300">
-                                <div>
-                                    <span className="font-medium">Total Planned:</span> {selectedActivity.totalQty || 'N/A'} {selectedActivity.uom}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Total Executed:</span> {finalCumulativeQty.toFixed(2)} {selectedActivity.uom}
-                                </div>
-                            </div>
-                            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mt-2">
-                                <div className="bg-[#28a745] h-2.5 rounded-full" style={{ width: `${Math.min(finalPercentage, 100).toFixed(2)}%` }}></div>
-                            </div>
-                             <div className="text-right text-lg font-bold text-[#28a745] mt-1">
-                                {Math.min(finalPercentage, 100).toFixed(2)}%
-                            </div>
-                        </div>
-                        
-                        <div className="overflow-y-auto max-h-[calc(100vh-25rem)]">
-                             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                                <thead className="bg-slate-50 dark:bg-slate-700 sticky top-0">
-                                    <tr>
-                                        <SortableHeader sortKey="date" title="Date" requestSort={requestSort} sortConfig={sortConfig} />
-                                        <SortableHeader sortKey="shift" title="Shift" requestSort={requestSort} sortConfig={sortConfig} />
-                                        <SortableHeader sortKey="qty" title="Daily Qty" requestSort={requestSort} sortConfig={sortConfig} />
-                                        <SortableHeader sortKey="cumulativeQty" title="Cumulative Qty" requestSort={requestSort} sortConfig={sortConfig} />
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Progress %</th>
-                                        {canModify && <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>}
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                                    {sortedCumulativeData.map(record => {
-                                        const percentage = selectedActivity.totalQty
-                                            ? (record.cumulativeQty / selectedActivity.totalQty) * 100
-                                            : record.manualPercentage ?? null;
-
-                                        return (
-                                            <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.date}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.shift || 'Day'}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.qty.toFixed(2)}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{record.cumulativeQty.toFixed(2)}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
-                                                    {percentage !== null ? `${Math.min(percentage, 100).toFixed(2)}%` : 'N/A'}
-                                                </td>
-                                                {canModify && (
-                                                    <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
-                                                        <button onClick={() => setRecordToEdit(record)} className="text-[#28a745] hover:text-green-700">
-                                                            <PencilIcon className="h-5 w-5" />
-                                                        </button>
-                                                        {canDelete && (
-                                                            <button onClick={() => handleDelete(record)} className="text-red-600 hover:text-red-800">
-                                                                <TrashIcon className="h-5 w-5" />
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
-                   ) : (
-                    <div className="text-center py-10 px-4">
-                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">No Activity Selected</h3>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Please select a project and all subsequent levels down to an activity to view and record progress.</p>
-                    </div>
-                   )}
                 </div>
+
+                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-medium text-slate-900 dark:text-white">Progress Log</h3>
+                        <button onClick={handleExport} disabled={sortedRecords.length === 0} className="flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm disabled:opacity-50">
+                           <ExportIcon className="h-5 w-5 mr-2" /> Export
+                        </button>
+                    </div>
+                    <div className="overflow-x-auto">
+                         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                             <thead className="bg-slate-50 dark:bg-slate-700">
+                                <tr>
+                                    <SortableHeader sortKey="activityPath" title="Activity" requestSort={requestSort} sortConfig={sortConfig} />
+                                    <SortableHeader sortKey="date" title="Date" requestSort={requestSort} sortConfig={sortConfig} />
+                                    <SortableHeader sortKey="dailyQty" title="Daily Qty" requestSort={requestSort} sortConfig={sortConfig} />
+                                    <SortableHeader sortKey="qty" title="Cumulative" requestSort={requestSort} sortConfig={sortConfig} />
+                                    {canModify && <th className="relative px-4 py-3"><span className="sr-only">Actions</span></th>}
+                                </tr>
+                             </thead>
+                             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                                {sortedRecords.map(rec => (
+                                    <tr key={rec.id}>
+                                        <td className="px-4 py-3 text-sm" title={rec.activityPath}>{rec.activityPath}</td>
+                                        <td className="px-4 py-3 text-sm">{rec.date}</td>
+                                        <td className="px-4 py-3 text-sm">{rec.dailyQty.toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-sm font-semibold">{rec.qty.toLocaleString()}</td>
+                                        {canModify && (
+                                            <td className="px-4 py-3 text-right text-sm space-x-4">
+                                                <button onClick={() => handleOpenEditModal(rec)} className="text-[#28a745]"><PencilIcon className="h-5 w-5"/></button>
+                                                <button onClick={() => handleDelete(rec.id)} className="text-red-600"><TrashIcon className="h-5 w-5"/></button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                             </tbody>
+                         </table>
+                    </div>
+                 </div>
             </div>
+
+            {isModalOpen && activityForForm && (
+                <Modal title={recordToEdit ? `Edit Progress for ${activityForForm.name}` : `Add Progress for ${activityForForm.name}`} onClose={() => setIsModalOpen(false)}>
+                    <form onSubmit={handleSubmit}>
+                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            <div>
+                                <label className="block text-sm font-medium">Date</label>
+                                <input type="date" value={date} onChange={e => setDate(e.target.value)} required max={new Date().toISOString().split('T')[0]} className="w-full mt-1 block border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-700"/>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="qty-input" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                        Cumulative Qty ({activityForForm.uom || 'N/A'})
+                                    </label>
+                                    <input id="qty-input" type="number" value={cumulativeQty} onChange={e => setCumulativeQty(e.target.value === '' ? '' : parseFloat(e.target.value))} required className="w-full mt-1 block border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-700" step="any" min="0"/>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Daily qty for this entry: <span className="font-semibold">{dailyQtyForEntry.toLocaleString()}</span></p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium">Shift</label>
+                                    <select value={shift} onChange={e => setShift(e.target.value as Shift)} className="w-full mt-1 block border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-slate-700">
+                                        {Object.values(Shift).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            {activityForForm.totalQty !== undefined && activityForForm.totalQty > 0 && (
+                                <div className="mt-2 space-y-1">
+                                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                                        <span>Overall Progress</span>
+                                        <span>{progressPercentage.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                                        <div className="bg-green-500 h-2 rounded-full transition-all duration-300" style={{ width: `${Math.min(progressPercentage, 100)}%` }}></div>
+                                    </div>
+                                     <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
+                                        {(Number(cumulativeQty) || 0).toLocaleString()} / {activityForForm.totalQty.toLocaleString()}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 text-right space-x-3">
+                            <button type="button" onClick={() => setIsModalOpen(false)} className="inline-flex justify-center py-2 px-4 border border-slate-300 dark:border-slate-600 shadow-sm text-sm font-medium rounded-md text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                Cancel
+                            </button>
+                            <button type="submit" className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#28a745] hover:bg-green-700">
+                                {recordToEdit ? 'Save Changes' : 'Add Record'}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
         </div>
     );
 };

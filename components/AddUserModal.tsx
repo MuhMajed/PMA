@@ -170,6 +170,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAdd, onEdit, use
                         <option value="Admin">Admin</option>
                         <option value="Project Manager">Project Manager</option>
                         <option value="Data Entry">Data Entry</option>
+                        <option value="Safety">Safety</option>
                     </select>
                 </div>
             </div>

@@ -26,26 +26,31 @@ export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> =
     
     const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
 
-    const filteredProjects = useMemo(() => {
+    const trulyFilteredProjects = useMemo(() => {
         if (!searchTerm) return projects;
         const lowercasedFilter = searchTerm.toLowerCase();
+        return projects.filter(project => project.name.toLowerCase().includes(lowercasedFilter));
+    }, [searchTerm, projects]);
+
+    const filteredProjects = useMemo(() => {
+        if (!searchTerm) return projects;
         
         const filteredIds = new Set<string>();
 
-        for (const project of projects) {
-            if (project.name.toLowerCase().includes(lowercasedFilter)) {
-                filteredIds.add(project.id);
-                // Add all ancestors to ensure the path is visible
-                let current = project;
-                while (current.parentId) {
-                    filteredIds.add(current.parentId);
-                    current = projectMap.get(current.parentId)!;
-                    if (!current) break;
-                }
+        // Use the truly filtered projects to build the visible tree
+        trulyFilteredProjects.forEach(project => {
+            filteredIds.add(project.id);
+            // Add all ancestors to ensure the path is visible
+            let current = project;
+            while (current.parentId) {
+                filteredIds.add(current.parentId);
+                current = projectMap.get(current.parentId)!;
+                if (!current) break;
             }
-        }
+        });
+        
         return projects.filter(p => filteredIds.has(p.id));
-    }, [searchTerm, projects, projectMap]);
+    }, [searchTerm, projects, projectMap, trulyFilteredProjects]);
 
     const projectTree = useMemo(() => filteredProjects.filter(p => p.parentId === null), [filteredProjects]);
 
@@ -79,7 +84,23 @@ export const ProjectMultiSelectFilter: React.FC<ProjectMultiSelectFilterProps> =
     };
 
     const handleSelectAll = (select: boolean) => {
-        onSelectionChange(select ? projects.map(p => p.id) : []);
+        // If no search, "Select All" applies to all projects.
+        // If search, it applies only to projects whose names match the search term.
+        const targetProjects = searchTerm ? trulyFilteredProjects : projects;
+        
+        // Get all IDs from the target projects and all their descendants.
+        const allIdsToChange = new Set<string>();
+        targetProjects.forEach(p => {
+            allIdsToChange.add(p.id);
+            getDescendantIds(p.id, projects).forEach(descId => allIdsToChange.add(descId));
+        });
+
+        if (select) {
+            onSelectionChange([...new Set([...selectedIds, ...Array.from(allIdsToChange)])]);
+        } else {
+            const idsToRemove = allIdsToChange;
+            onSelectionChange(selectedIds.filter(id => !idsToRemove.has(id)));
+        }
     };
     
     // Close dropdown on outside click

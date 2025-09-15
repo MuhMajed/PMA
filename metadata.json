@@ -1,5 +1,7 @@
 {
   "name": "Productivity Monitoring Application",
   "description": "A web application for managing daily manpower and productivity for construction projects. Track employee details, project assignments, and daily status efficiently.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

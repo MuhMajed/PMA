@@ -15,10 +15,10 @@ import { MapPinIcon } from '../components/icons/MapPinIcon';
 import { ViewfinderCircleIcon } from '../components/icons/ViewfinderCircleIcon';
 import { QrCodeIcon } from '../components/icons/QrCodeIcon';
 import { ClipboardDocumentListIcon } from '../components/icons/ClipboardDocumentListIcon';
-import { Bars3Icon } from '../components/icons/Bars3Icon';
+import { Square3Stack3DIcon } from '../components/icons/Square3Stack3DIcon';
 import { useMessage } from '../components/ConfirmationProvider';
 import Tooltip from '../components/ui/Tooltip';
-import { HIERARCHY, DEFAULT_HIERARCHY_LABELS } from '../constants';
+import { HIERARCHY, DEFAULT_HIERARCHY_LABELS, UOM_OPTIONS, CURRENCY_OPTIONS } from '../constants';
 import { TagIcon } from '../components/icons/TagIcon';
 import { DownloadIcon } from '../components/icons/DownloadIcon';
 
@@ -36,23 +36,21 @@ interface SettingsProjectsProps {
 interface ProjectFormData {
     name: string;
     type: ProjectNodeType | '';
-    uom: string;
     totalQty: number | '';
-    universalNorm: number | '';
-    companyNorm: number | '';
-    rate: number | '';
     hierarchyLabels: Partial<Record<ProjectNodeType, string>>;
+    uom: string;
+    rate: number | '';
+    currency: string;
 }
 
 const initialFormData: ProjectFormData = {
     name: '',
     type: '',
-    uom: '',
     totalQty: '',
-    universalNorm: '',
-    companyNorm: '',
-    rate: '',
     hierarchyLabels: {},
+    uom: '',
+    rate: '',
+    currency: 'SAR',
 };
 
 const nodeTypeIcons: Record<ProjectNodeType, React.FC<React.SVGProps<SVGSVGElement>>> = {
@@ -60,7 +58,7 @@ const nodeTypeIcons: Record<ProjectNodeType, React.FC<React.SVGProps<SVGSVGEleme
     Level1: MapPinIcon,
     Level2: ViewfinderCircleIcon,
     Level3: BuildingOfficeIcon,
-    Level4: Bars3Icon,
+    Level4: Square3Stack3DIcon,
     Level5: QrCodeIcon,
     Level6: TagIcon,
     Level7: TagIcon,
@@ -125,7 +123,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        const isNumeric = ['totalQty', 'universalNorm', 'companyNorm', 'rate'].includes(name);
+        const isNumeric = ['totalQty', 'rate'].includes(name);
         setFormData(prev => ({
             ...prev,
             [name]: isNumeric ? (value === '' ? '' : Number(value)) : value,
@@ -156,16 +154,15 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
              setFormData({
                 name: project.name,
                 type: project.type,
-                uom: project.uom || '',
                 totalQty: project.totalQty ?? '',
-                universalNorm: project.universalNorm ?? '',
-                companyNorm: project.companyNorm ?? '',
-                rate: project.rate ?? '',
                 hierarchyLabels: labelsToEdit,
+                uom: project.uom || '',
+                rate: project.rate ?? '',
+                currency: project.currency || 'SAR',
             });
         } else {
             const nextType = getNextNodeType(currentParentNode?.type);
-            setFormData({...initialFormData, type: nextType || ''});
+            setFormData({...initialFormData, type: nextType || '', uom: UOM_OPTIONS[0]});
         }
         setIsModalOpen(true);
     };
@@ -201,49 +198,26 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
             showError('Missing Information', 'Name and type cannot be empty.');
             return;
         }
+        
+        const projectData: Partial<Project> = {
+            name: formData.name.trim(),
+            type: formData.type as ProjectNodeType,
+        };
 
-        if (formData.type === 'Activity') {
-            if (formData.universalNorm === '' || isNaN(Number(formData.universalNorm)) || Number(formData.universalNorm) < 0) {
-                showError('Invalid Input', 'Universal Norm is mandatory for activities and must be a number equal to or greater than 0.');
-                return;
-            }
-            if (formData.companyNorm !== '' && (isNaN(Number(formData.companyNorm)) || Number(formData.companyNorm) < 0)) {
-                showError('Invalid Input', 'Company Norm must be a number equal to or greater than 0 if provided.');
-                return;
-            }
-            if (formData.rate !== '' && (isNaN(Number(formData.rate)) || Number(formData.rate) < 0)) {
-                showError('Invalid Input', 'Rate must be a number equal to or greater than 0 if provided.');
-                return;
-            }
+        if (projectData.type === 'Activity') {
+            projectData.totalQty = formData.totalQty !== '' ? Number(formData.totalQty) : undefined;
+            projectData.uom = formData.uom;
+            projectData.rate = formData.rate !== '' ? Number(formData.rate) : undefined;
+            projectData.currency = formData.currency;
+        }
+        if (projectToEdit?.parentId === null) {
+            projectData.hierarchyLabels = formData.hierarchyLabels;
         }
 
         if (projectToEdit) {
-            const updatedProject: Project = { ...projectToEdit, name: formData.name };
-            if (updatedProject.type === 'Activity') {
-                updatedProject.uom = formData.uom;
-                updatedProject.totalQty = formData.totalQty !== '' ? Number(formData.totalQty) : undefined;
-                updatedProject.universalNorm = Number(formData.universalNorm);
-                updatedProject.companyNorm = formData.companyNorm !== '' ? Number(formData.companyNorm) : undefined;
-                updatedProject.rate = formData.rate !== '' ? Number(formData.rate) : undefined;
-            }
-            if (updatedProject.parentId === null) {
-                updatedProject.hierarchyLabels = formData.hierarchyLabels;
-            }
-            onEdit(updatedProject);
+            onEdit({ ...projectToEdit, ...projectData });
         } else {
-            const newProject: Omit<Project, 'id'> = {
-                name: formData.name,
-                parentId: currentParentId,
-                type: formData.type,
-            };
-            if (newProject.type === 'Activity') {
-                newProject.uom = formData.uom;
-                if (formData.totalQty !== '') newProject.totalQty = Number(formData.totalQty);
-                newProject.universalNorm = Number(formData.universalNorm);
-                if (formData.companyNorm !== '') newProject.companyNorm = Number(formData.companyNorm);
-                if (formData.rate !== '') newProject.rate = Number(formData.rate);
-            }
-            onAdd(newProject);
+            onAdd({ ...projectData, parentId: currentParentId } as Omit<Project, 'id'>);
         }
         closeModal();
     };
@@ -368,10 +342,7 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                                                     <span className="text-slate-800 dark:text-slate-200">{item.name}</span>
                                                     {item.type === 'Activity' && (
                                                         <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                                                            (Qty: {item.totalQty ?? 'N/A'} {item.uom})
-                                                            {typeof item.universalNorm === 'number' && ` UN: ${item.universalNorm}`}
-                                                            {typeof item.companyNorm === 'number' && ` CN: ${item.companyNorm}`}
-                                                            {typeof item.rate === 'number' && ` Rate: ${item.rate}`}
+                                                            (Qty: {item.totalQty ?? 'N/A'}{item.uom ? ` ${item.uom}` : ''})
                                                         </span>
                                                     )}
                                                 </div>
@@ -443,61 +414,50 @@ const SettingsProjects: React.FC<SettingsProjectsProps> = ({ projects, records, 
                             
                             {formData.type === 'Activity' && (
                                 <>
-                                    <div className="grid grid-cols-2 gap-4 pt-2">
-                                        <div>
-                                            <label htmlFor="uom" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                Unit of Measure
-                                            </label>
-                                            <input
-                                                type="text" id="uom" name="uom" value={formData.uom} onChange={handleInputChange}
-                                                placeholder="e.g., m³, kg, nr"
-                                                className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label htmlFor="totalQty" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                Total Quantity (Optional)
-                                            </label>
-                                            <input
-                                                type="number" id="totalQty" name="totalQty" value={formData.totalQty} onChange={handleInputChange}
-                                                placeholder="e.g., 5000" min="0"
-                                                className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
-                                            />
-                                        </div>
-                                    </div>
                                     <div>
-                                        <label htmlFor="rate" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            Rate / UOM (Optional)
+                                        <label htmlFor="totalQty" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            Total Planned Quantity (BOQ)
                                         </label>
                                         <input
-                                            type="number" id="rate" name="rate" value={formData.rate} onChange={handleInputChange}
-                                            min="0" step="any"
-                                            placeholder="e.g., 150.50"
+                                            type="number" id="totalQty" name="totalQty" value={formData.totalQty} onChange={handleInputChange}
+                                            placeholder="e.g., 5000" min="0"
                                             className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 pt-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <label htmlFor="universalNorm" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                Universal Norm <span className="text-red-500">*</span>
+                                            <label htmlFor="uom" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                Unit of Measure (UOM)
                                             </label>
-                                            <input
-                                                type="number" id="universalNorm" name="universalNorm" value={formData.universalNorm} onChange={handleInputChange}
-                                                required min="0" step="any"
+                                            <select
+                                                id="uom" name="uom" value={formData.uom} onChange={handleInputChange}
                                                 className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
-                                            />
-                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Unit: {formData.uom || 'Unit'} / Man-hour</p>
+                                            >
+                                                {UOM_OPTIONS.map(uom => <option key={uom} value={uom}>{uom}</option>)}
+                                            </select>
                                         </div>
-                                        <div>
-                                            <label htmlFor="companyNorm" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                Company Norm (Optional)
-                                            </label>
-                                            <input
-                                                type="number" id="companyNorm" name="companyNorm" value={formData.companyNorm} onChange={handleInputChange}
-                                                min="0" step="any"
-                                                className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
-                                            />
-                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Unit: {formData.uom || 'Unit'} / Man-hour</p>
+                                        <div className="grid grid-cols-3 gap-2 items-end">
+                                            <div className="col-span-2">
+                                                <label htmlFor="rate" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                    Unit Cost (Rate)
+                                                </label>
+                                                <input
+                                                    type="number" id="rate" name="rate" value={formData.rate} onChange={handleInputChange}
+                                                    placeholder="e.g., 120.50" min="0" step="any"
+                                                    className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="currency" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                    Currency
+                                                </label>
+                                                <select
+                                                    id="currency" name="currency" value={formData.currency} onChange={handleInputChange}
+                                                    className="mt-1 block w-full border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#28a745] focus:border-[#28a745] sm:text-sm bg-white dark:bg-slate-700"
+                                                >
+                                                {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 </>

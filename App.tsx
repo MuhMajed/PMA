@@ -1,12 +1,12 @@
-
 import React, { useEffect } from 'react';
 import { useStore } from './store/appStore';
-import { useProjectsForCurrentUser, useManpowerRecordsForCurrentUser, useProgressRecordsForCurrentUser, useEquipmentRecordsForCurrentUser } from './hooks/useData';
+import { useProjectsForCurrentUser, useManpowerRecordsForCurrentUser, useProgressRecordsForCurrentUser, useEquipmentRecordsForCurrentUser, useSafetyViolationsForCurrentUser } from './hooks/useData';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import ManpowerRecords from './pages/ManpowerRecords';
 import ProgressRecordPage from './pages/ProgressRecord';
 import EquipmentRecordsPage from './pages/EquipmentRecords';
+import SafetyViolationsPage from './pages/SafetyViolations';
 import SettingsEmployees from './pages/SettingsEmployees';
 import SettingsProjects from './pages/SettingsProjects';
 import SettingsProfessions from './pages/SettingsProfessions';
@@ -14,8 +14,9 @@ import SettingsSubcontractors from './pages/SettingsSubcontractors';
 import SettingsDepartments from './pages/SettingsDepartments';
 import SettingsUsers from './pages/SettingsUsers';
 import SettingsEquipment from './pages/SettingsEquipment';
+import SettingsActivityGroups from './pages/SettingsActivityGroups';
 import LoginPage from './pages/LoginPage';
-import { MessageProvider } from './components/ConfirmationProvider';
+import { useMessage } from './components/ConfirmationProvider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from './utils/api';
 import { Chart as ChartJS } from 'chart.js';
@@ -25,6 +26,7 @@ import { Chart as ChartJS } from 'chart.js';
 const App: React.FC = () => {
   const queryClient = useQueryClient();
   const { currentUser, theme, setTheme, currentPage, setCurrentPage, logout, setSharedFilters, isFilterInitialized, setIsFilterInitialized } = useStore();
+  const { showError } = useMessage();
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -98,11 +100,14 @@ const App: React.FC = () => {
   const { data: allDepartments = [] } = useQuery({ queryKey: ['departments'], queryFn: api.fetchDepartments });
   const { data: allScopes = [] } = useQuery({ queryKey: ['scopes'], queryFn: api.fetchScopes });
   const { data: allEquipment = [] } = useQuery({ queryKey: ['equipment'], queryFn: api.fetchEquipment });
+  const { data: allActivityGroups = [] } = useQuery({ queryKey: ['activityGroups'], queryFn: api.fetchActivityGroups });
+  const { data: allActivityGroupMappings = [] } = useQuery({ queryKey: ['activityGroupMappings'], queryFn: api.fetchActivityGroupMappings });
   
   const { projects: allProjectsForUser } = useProjectsForCurrentUser();
   const { records: allManpowerRecordsForUser } = useManpowerRecordsForCurrentUser();
   const { progressRecords: allProgressRecordsForUser } = useProgressRecordsForCurrentUser();
   const { equipmentRecords: allEquipmentRecordsForUser } = useEquipmentRecordsForCurrentUser();
+  const { violations: allSafetyViolationsForUser } = useSafetyViolationsForCurrentUser();
   
   // Initialize shared project filter once projects are loaded
   useEffect(() => {
@@ -117,9 +122,12 @@ const App: React.FC = () => {
 
   // Mutations
   const createMutation = <TData, TError, TVariables>(mutationFn: (vars: TVariables) => Promise<TData>, queryKey: string[]) => 
-    useMutation({
+    useMutation<TData, TError, TVariables>({
         mutationFn,
-        onSuccess: () => queryClient.invalidateQueries({ queryKey })
+        onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+        onError: (error: any) => {
+          showError('Operation Failed', error.message || 'An unexpected error occurred.');
+        },
     });
 
   // Projects
@@ -180,12 +188,30 @@ const App: React.FC = () => {
   const updateEquipmentRecordMutation = createMutation(api.updateEquipmentRecord, ['equipmentRecords']);
   const deleteEquipmentRecordMutation = createMutation(api.deleteEquipmentRecord, ['equipmentRecords']);
 
+  // Safety Violations
+  const addSafetyViolationMutation = createMutation(api.addSafetyViolation, ['safetyViolations']);
+  const updateSafetyViolationMutation = createMutation(api.updateSafetyViolation, ['safetyViolations']);
+  const deleteSafetyViolationMutation = createMutation(api.deleteSafetyViolation, ['safetyViolations']);
+  
+  // Activity Groups
+  const addActivityGroupMutation = createMutation(api.addActivityGroup, ['activityGroups']);
+  const updateActivityGroupMutation = createMutation(api.updateActivityGroup, ['activityGroups']);
+  const deleteActivityGroupMutation = createMutation(api.deleteActivityGroup, ['activityGroups', 'activityGroupMappings']);
+  const setActivityGroupMappingsMutation = useMutation({
+    mutationFn: ({ groupId, activityIds }: { groupId: string; activityIds: string[] }) => api.setActivityGroupMappings(groupId, activityIds),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activityGroupMappings'] })
+  });
+
   
   const renderPage = () => {
     if (!currentUser) return <LoginPage />;
 
     if (currentPage.startsWith('settings-') && currentUser.role !== 'Admin') {
         // While useEffect handles state change, render dashboard immediately to prevent flicker.
+        return <Dashboard />;
+    }
+
+    if (currentUser.role === 'Safety' && !['dashboard', 'safety-violations'].includes(currentPage)) {
         return <Dashboard />;
     }
     
@@ -198,9 +224,12 @@ const App: React.FC = () => {
         onBulkAddRecords={bulkAddManpowerRecordsMutation.mutate}
         currentUser={currentUser}
       />;
+// FIX: Pass activityGroups and activityGroupMappings to ProgressRecordPage.
       case 'progress-record': return <ProgressRecordPage 
         projects={allProjectsForUser}
         progressRecords={allProgressRecordsForUser}
+        activityGroups={allActivityGroups}
+        activityGroupMappings={allActivityGroupMappings}
         onAddProgress={addProgressRecordMutation.mutate}
         onUpdateProgress={updateProgressRecordMutation.mutate}
         onDeleteProgress={deleteProgressRecordMutation.mutate}
@@ -214,6 +243,16 @@ const App: React.FC = () => {
         onAdd={addEquipmentRecordMutation.mutate}
         onUpdate={updateEquipmentRecordMutation.mutate}
         onDelete={deleteEquipmentRecordMutation.mutate}
+        currentUser={currentUser}
+      />;
+      case 'safety-violations': return <SafetyViolationsPage
+        violations={allSafetyViolationsForUser}
+        projects={allProjectsForUser}
+        employees={allEmployees}
+        subcontractors={allSubcontractors}
+        onAdd={addSafetyViolationMutation.mutate}
+        onUpdate={updateSafetyViolationMutation.mutate}
+        onDelete={deleteSafetyViolationMutation.mutate}
         currentUser={currentUser}
       />;
       case 'settings-employees': return <SettingsEmployees 
@@ -284,24 +323,28 @@ const App: React.FC = () => {
         onAdminResetPassword={(userId, newPassword) => adminResetPasswordMutation.mutate({ userId, newPassword })}
         currentUser={currentUser}
        />;
+       case 'settings-activity-groups': return <SettingsActivityGroups 
+        projects={allProjectsForUser}
+        activityGroups={allActivityGroups}
+        activityGroupMappings={allActivityGroupMappings}
+        onAdd={addActivityGroupMutation.mutate}
+        onUpdate={updateActivityGroupMutation.mutate}
+        onDelete={deleteActivityGroupMutation.mutate}
+        onSetMappings={(groupId, activityIds) => setActivityGroupMappingsMutation.mutate({ groupId, activityIds })}
+        currentUser={currentUser}
+      />;
       default: return <Dashboard />;
     }
   };
 
   if (!currentUser) {
-    return (
-        <MessageProvider>
-            <LoginPage />
-        </MessageProvider>
-    );
+    return <LoginPage />;
   }
 
   return (
-    <MessageProvider>
-      <Layout>
-          {renderPage()}
-      </Layout>
-    </MessageProvider>
+    <Layout>
+      {renderPage()}
+    </Layout>
   );
 };
 

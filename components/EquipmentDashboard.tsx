@@ -61,7 +61,8 @@ const EquipmentDashboard: React.FC<EquipmentDashboardProps> = ({ equipmentRecord
             }
             return acc;
         }, {} as Record<string, number>);
-        return Object.entries(hoursMap).sort(([, a], [, b]) => b - a);
+        // FIX: Cast sort callback parameters to 'number' to resolve arithmetic operation error on unknown types.
+        return Object.entries(hoursMap).sort(([, a], [, b]) => (b as number) - (a as number));
     }, [equipmentRecords, equipmentMap]);
 
     const hoursByDate = useMemo(() => {

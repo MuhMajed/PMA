@@ -186,9 +186,10 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
 
     const progressPercentage = useMemo(() => {
         if (!activityForForm || !activityForForm.totalQty) return 0;
-        const currentTotal = Number(cumulativeQty) || 0;
+        // Use the input value if present, otherwise show the previous progress.
+        const currentTotal = cumulativeQty !== '' ? Number(cumulativeQty) : previousCumulativeQty;
         return (currentTotal / activityForForm.totalQty) * 100;
-    }, [activityForForm, cumulativeQty]);
+    }, [activityForForm, cumulativeQty, previousCumulativeQty]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -423,7 +424,7 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                         <div className="bg-green-500 h-2 rounded-full transition-all duration-300" style={{ width: `${Math.min(progressPercentage, 100)}%` }}></div>
                                     </div>
                                      <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
-                                        {(Number(cumulativeQty) || 0).toLocaleString()} / {activityForForm.totalQty.toLocaleString()}
+                                        {(cumulativeQty !== '' ? Number(cumulativeQty) : previousCumulativeQty).toLocaleString()} / {activityForForm.totalQty.toLocaleString()}
                                     </p>
                                 </div>
                             )}

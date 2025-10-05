@@ -106,7 +106,8 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
         }
 
         const dateDataMap = new Map(allDatesInRange.map(date => {
-            const total = Object.values(manpowerByDateAndProject[date] || {}).reduce((s, c) => s + c, 0);
+            // FIX: Explicitly type accumulator and current value in reduce to prevent type inference issues.
+            const total = Object.values(manpowerByDateAndProject[date] || {}).reduce((s: number, c: number) => s + c, 0);
             return [date, { total }];
         }));
         

@@ -19,7 +19,7 @@ export interface ManpowerRecord {
   status: ManpowerStatus;
   nationality: string;
   subcontractor: string;
-  date: string; // YYYY-MM-DD format
+  date: string; // YYYY-MM-DD
   hoursWorked?: number;
   shift: Shift;
   createdBy?: string;
@@ -82,6 +82,8 @@ export interface ProgressRecord {
   qty: number; 
   manualPercentage?: number; // Optional user-defined cumulative percentage
   shift?: Shift;
+  progressPhotos?: string; // base64 encoded image
+  highlightedLayoutPhotos?: string; // base64 encoded image
 }
 
 export type UserRole = 'Admin' | 'Project Manager' | 'Data Entry' | 'Safety';

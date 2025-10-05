@@ -32,11 +32,12 @@ export const useProjectsForCurrentUser = () => {
             visibleProjectIds.add(id);
 
             // Add all ancestors
-            // FIX: Explicitly type `current` as `Project | undefined` to help TypeScript's type inference.
+            // FIX: Explicitly type `current` as `Project | undefined` and use optional chaining to avoid potential type inference issues with parentId.
             let current: Project | undefined = projectsById.get(id);
-            while (current && current.parentId) {
-                visibleProjectIds.add(current.parentId);
-                current = projectsById.get(current.parentId);
+            while (current?.parentId) {
+                const parentId = current.parentId;
+                visibleProjectIds.add(parentId);
+                current = projectsById.get(parentId);
             }
         });
 

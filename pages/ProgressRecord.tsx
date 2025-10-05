@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Project, ProgressRecord as ProgressRecordType, User, Shift, ProjectNodeType, ActivityGroup, ActivityGroupMapping } from '../types';
 import PageHeader from '../components/ui/PageHeader';
 import { PlusIcon } from '../components/icons/PlusIcon';
@@ -11,6 +11,10 @@ import { ChevronUpDownIcon } from '../components/icons/ChevronUpDownIcon';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { HIERARCHY, DEFAULT_HIERARCHY_LABELS } from '../constants';
 import Modal from '../components/ui/Modal';
+import { UploadIcon } from '../components/icons/UploadIcon';
+import { CameraIcon } from '../components/icons/CameraIcon';
+import { MapPinIcon } from '../components/icons/MapPinIcon';
+import Tooltip from '../components/ui/Tooltip';
 
 const getDescendantIds = (projectId: string, allProjects: Project[]): string[] => {
     const ids = [projectId];
@@ -20,6 +24,48 @@ const getDescendantIds = (projectId: string, allProjects: Project[]): string[] =
     });
     return ids;
 };
+
+const processImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8)); // compress to jpeg
+      };
+      img.onerror = reject;
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 
 interface ProgressRecordPageProps {
     projects: Project[];
@@ -96,6 +142,11 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [cumulativeQty, setCumulativeQty] = useState<number | ''>('');
     const [shift, setShift] = useState<Shift>(Shift.DAY);
+    const [progressPhoto, setProgressPhoto] = useState<string | undefined>();
+    const [highlightedLayoutPhoto, setHighlightedLayoutPhoto] = useState<string | undefined>();
+    const progressPhotoInputRef = useRef<HTMLInputElement>(null);
+    const highlightedLayoutPhotoInputRef = useRef<HTMLInputElement>(null);
+
     const { showError, showConfirmation } = useMessage();
     const canModify = currentUser.role === 'Admin' || currentUser.role === 'Data Entry';
 
@@ -135,6 +186,8 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
             setDate(recordToEdit.date);
             setCumulativeQty(recordToEdit.qty);
             setShift(recordToEdit.shift || Shift.DAY);
+            setProgressPhoto(recordToEdit.progressPhotos);
+            setHighlightedLayoutPhoto(recordToEdit.highlightedLayoutPhotos);
             const path: Record<ProjectNodeType, string | null> = { ...initialHierarchyState };
             let current = projectMap.get(recordToEdit.activityId);
             while (current) {
@@ -150,6 +203,10 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
         setDate(new Date().toISOString().split('T')[0]);
         setCumulativeQty('');
         setShift(Shift.DAY);
+        setProgressPhoto(undefined);
+        setHighlightedLayoutPhoto(undefined);
+        if (progressPhotoInputRef.current) progressPhotoInputRef.current.value = "";
+        if (highlightedLayoutPhotoInputRef.current) highlightedLayoutPhotoInputRef.current.value = "";
         setIsModalOpen(true);
     };
 
@@ -160,22 +217,27 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
 
     const previousCumulativeQty = useMemo(() => {
         if (!activityForForm) return 0;
-        const relevantRecords = progressRecords.filter(r => {
-            if (r.activityId !== activityForForm.id) return false;
-            if (recordToEdit && r.id === recordToEdit.id) return false;
-            if (r.date < date) return true;
-            if (r.date > date) return false;
-            return r.shift === Shift.DAY && shift === Shift.NIGHT;
-        });
-        if (relevantRecords.length === 0) return 0;
-        relevantRecords.sort((a, b) => {
-            const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
-            if (dateComparison !== 0) return dateComparison;
-            if (a.shift === Shift.NIGHT && b.shift === Shift.DAY) return 1;
-            if (a.shift === Shift.DAY && b.shift === Shift.NIGHT) return -1;
-            return 0;
-        });
-        return relevantRecords[0]?.qty || 0;
+        const relevantRecords = progressRecords
+            .filter(r => r.activityId === activityForForm.id && r.id !== recordToEdit?.id)
+            .sort((a, b) => {
+                const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
+                if (dateComparison !== 0) return dateComparison;
+                if (a.shift === Shift.NIGHT && b.shift === Shift.DAY) return 1;
+                if (a.shift === Shift.DAY && b.shift === Shift.NIGHT) return -1;
+                return 0;
+            });
+        
+        // Find the record immediately preceding the current form's date/shift
+        const formDateTime = new Date(date).getTime();
+        for (const rec of relevantRecords) {
+            const recDateTime = new Date(rec.date).getTime();
+            if (recDateTime < formDateTime) return rec.qty;
+            if (recDateTime === formDateTime) {
+                if (shift === Shift.NIGHT && rec.shift === Shift.DAY) return rec.qty;
+            }
+        }
+
+        return 0;
     }, [progressRecords, activityForForm, date, shift, recordToEdit]);
     
     const dailyQtyForEntry = useMemo(() => {
@@ -190,6 +252,18 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
         const currentTotal = cumulativeQty !== '' ? Number(cumulativeQty) : previousCumulativeQty;
         return (currentTotal / activityForForm.totalQty) * 100;
     }, [activityForForm, cumulativeQty, previousCumulativeQty]);
+
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string | undefined>>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const base64 = await processImage(file);
+                setter(base64);
+            } catch (err) {
+                showError('Image Error', 'Could not process the image file.');
+            }
+        }
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -216,7 +290,16 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
             showError("Activity Not Mapped", "This activity has not been mapped to an Activity Group. Please configure it in Settings.");
             return;
         }
-        const recordData = { date, qty: newCumulativeQty, shift, activityId: activityForForm.id, activityGroupId: mapping.activityGroupId };
+        const recordData = { 
+            date, 
+            qty: newCumulativeQty, 
+            shift, 
+            activityId: activityForForm.id, 
+            activityGroupId: mapping.activityGroupId,
+            progressPhotos: progressPhoto,
+            highlightedLayoutPhotos: highlightedLayoutPhoto
+        };
+
         if (recordToEdit) {
             onUpdateProgress({ ...recordData, id: recordToEdit.id });
         } else {
@@ -367,16 +450,35 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                     <SortableHeader sortKey="date" title="Date" requestSort={requestSort} sortConfig={sortConfig} />
                                     <SortableHeader sortKey="dailyQty" title="Daily Qty" requestSort={requestSort} sortConfig={sortConfig} />
                                     <SortableHeader sortKey="qty" title="Cumulative" requestSort={requestSort} sortConfig={sortConfig} />
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Photos</th>
                                     {canModify && <th className="relative px-4 py-3"><span className="sr-only">Actions</span></th>}
                                 </tr>
                              </thead>
                              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                                 {sortedRecords.map(rec => (
                                     <tr key={rec.id}>
-                                        <td className="px-4 py-3 text-sm" title={rec.activityPath}>{rec.activityPath}</td>
-                                        <td className="px-4 py-3 text-sm">{rec.date}</td>
-                                        <td className="px-4 py-3 text-sm">{rec.dailyQty.toLocaleString()}</td>
-                                        <td className="px-4 py-3 text-sm font-semibold">{rec.qty.toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300" title={rec.activityPath}>{rec.activityPath}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{rec.date}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{rec.dailyQty.toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{rec.qty.toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-sm">
+                                            <div className="flex items-center space-x-3">
+                                                {rec.progressPhotos && (
+                                                    <Tooltip content="View Progress Photo">
+                                                        <a href={rec.progressPhotos} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                                                            <CameraIcon className="h-5 w-5"/>
+                                                        </a>
+                                                    </Tooltip>
+                                                )}
+                                                {rec.highlightedLayoutPhotos && (
+                                                    <Tooltip content="View Layout Photo">
+                                                        <a href={rec.highlightedLayoutPhotos} target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-700">
+                                                            <MapPinIcon className="h-5 w-5"/>
+                                                        </a>
+                                                    </Tooltip>
+                                                )}
+                                            </div>
+                                        </td>
                                         {canModify && (
                                             <td className="px-4 py-3 text-right text-sm space-x-4">
                                                 <button onClick={() => handleOpenEditModal(rec)} className="text-[#28a745]"><PencilIcon className="h-5 w-5"/></button>
@@ -428,6 +530,28 @@ const ProgressRecordPage: React.FC<ProgressRecordPageProps> = ({ projects, progr
                                     </p>
                                 </div>
                             )}
+                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                <div>
+                                    <label className="block text-sm font-medium">Progress Photo (Optional)</label>
+                                    <div className="mt-1 flex items-center space-x-4">
+                                        {progressPhoto && <a href={progressPhoto} target="_blank" rel="noopener noreferrer"><img src={progressPhoto} alt="Progress" className="h-16 w-16 rounded-md object-cover"/></a>}
+                                        <label className="cursor-pointer flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                            <UploadIcon className="h-5 w-5 mr-2" /> <span>{progressPhoto ? 'Change' : 'Upload'}</span>
+                                            <input ref={progressPhotoInputRef} type="file" onChange={(e) => handlePhotoChange(e, setProgressPhoto)} accept="image/*" className="hidden"/>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium">Highlighted Layout (Optional)</label>
+                                    <div className="mt-1 flex items-center space-x-4">
+                                        {highlightedLayoutPhoto && <a href={highlightedLayoutPhoto} target="_blank" rel="noopener noreferrer"><img src={highlightedLayoutPhoto} alt="Layout" className="h-16 w-16 rounded-md object-cover"/></a>}
+                                        <label className="cursor-pointer flex items-center justify-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                            <UploadIcon className="h-5 w-5 mr-2" /> <span>{highlightedLayoutPhoto ? 'Change' : 'Upload'}</span>
+                                            <input ref={highlightedLayoutPhotoInputRef} type="file" onChange={(e) => handlePhotoChange(e, setHighlightedLayoutPhoto)} accept="image/*" className="hidden"/>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 text-right space-x-3">
                             <button type="button" onClick={() => setIsModalOpen(false)} className="inline-flex justify-center py-2 px-4 border border-slate-300 dark:border-slate-600 shadow-sm text-sm font-medium rounded-md text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">

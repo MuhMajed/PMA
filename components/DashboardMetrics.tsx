@@ -79,7 +79,8 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
             return current;
         };
 
-        return records.reduce((acc, record) => {
+        // FIX: Explicitly type accumulator `acc` and value `record` to fix type inference issues downstream.
+        return records.reduce((acc: { [date: string]: { [projectName: string]: number } }, record: ManpowerRecord) => {
             const date = record.date;
             const topLevelProject = getTopLevelProject(record.project, projects);
             if (!topLevelProject) return acc;
@@ -107,7 +108,7 @@ const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
 
         const dateDataMap = new Map(allDatesInRange.map(date => {
             // FIX: Explicitly type accumulator and current value in reduce to prevent type inference issues.
-            const total = Object.values(manpowerByDateAndProject[date] || {}).reduce((s: number, c: number) => s + c, 0);
+            const total = Object.values(manpowerByDateAndProject[date] || {}).reduce((s: number, c) => s + (c as number), 0);
             return [date, { total }];
         }));
         

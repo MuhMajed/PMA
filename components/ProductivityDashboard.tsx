@@ -51,15 +51,15 @@ const ProductivityDashboard: React.FC<ProductivityDashboardProps> = ({
             currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        // FIX: Explicitly type reduce callback parameter to fix 'unknown' index type error.
-        const manHoursByDate = records.reduce((acc, r: ManpowerRecord) => {
+        // FIX: Explicitly type accumulator `acc` to resolve index signature errors.
+        const manHoursByDate = records.reduce((acc: Record<string, Record<string, number>>, r: ManpowerRecord) => {
             if (!acc[r.project]) acc[r.project] = {};
             acc[r.project][r.date] = (acc[r.project][r.date] || 0) + (r.hoursWorked || 0);
             return acc;
         }, {} as Record<string, Record<string, number>>);
 
-        // FIX: Explicitly type reduce callback parameter to fix 'unknown' index type error.
-        const progressByDate = progressRecords.reduce((acc, r: ProgressRecord) => {
+        // FIX: Explicitly type accumulator `acc` to resolve index signature errors.
+        const progressByDate = progressRecords.reduce((acc: Record<string, Record<string, number>>, r: ProgressRecord) => {
             if (!acc[r.activityId]) acc[r.activityId] = {};
             acc[r.activityId][r.date] = (acc[r.activityId][r.date] || 0) + r.qty;
             return acc;
